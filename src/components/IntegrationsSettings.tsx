@@ -13,8 +13,10 @@ const MODELS = [
   ["openai/gpt-4o-mini", "GPT-4o mini — cheap, good for reading mail"],
   ["openai/gpt-4.1-mini", "GPT-4.1 mini"],
   ["google/gemini-2.5-flash", "Gemini 2.5 Flash — cheap, strong on Hindi"],
+  ["google/gemini-3.7-flash", "Gemini 3.7 Flash — fast, strong on Hinglish"],
   ["anthropic/claude-3.5-haiku", "Claude 3.5 Haiku"],
-  ["anthropic/claude-sonnet-4", "Claude Sonnet 4 — best quality"],
+  ["anthropic/claude-sonnet-4", "Claude Sonnet 4"],
+  ["anthropic/claude-sonnet-5", "Claude Sonnet 5 — best quality"],
   ["openai/gpt-4.1", "GPT-4.1"],
 ];
 

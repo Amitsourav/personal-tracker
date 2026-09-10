@@ -5,7 +5,7 @@ import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
-const MAX_PER_RUN = 12;
+const MAX_PER_RUN = 25;
 
 type Secrets = { user_id: string; openrouter_key: string | null; model_extract: string; monthly_cap_usd: number; google_client_id: string; google_client_secret: string; google_refresh_token: string; google_email: string | null; gmail_history_id: string | null; gmail_enabled: boolean; gmail_ignore_senders: string[] };
 type Person = { id: string; name: string; emails: string[]; trust_level: string };
@@ -62,7 +62,7 @@ async function runForUser(db: SupabaseClient, uid: string) {
       ids = (l.messages ?? []).map((m: { id: string }) => m.id);
     } else ids = [...new Set(((h.history ?? []) as { messagesAdded?: { message: { id: string } }[] }[]).flatMap(x => (x.messagesAdded ?? []).map(m => m.message.id)))];
   } else {
-    const l = await g("messages", { q: "newer_than:3d in:inbox", maxResults: "40" });
+    const l = await g("messages", { q: "newer_than:7d in:inbox", maxResults: "100" });
     ids = (l.messages ?? []).map((m: { id: string }) => m.id);
   }
   // skip already-processed
@@ -71,12 +71,13 @@ async function runForUser(db: SupabaseClient, uid: string) {
     const seenSet = new Set((seen ?? []).map((r: { external_id: string }) => r.external_id));
     ids = ids.filter(id => !seenSet.has(id));
   }
-  ids = ids.slice(0, MAX_PER_RUN * 2);
+  ids = ids.slice(0, MAX_PER_RUN * 4);
 
   // ---- Fetch + prefilter
   const selfEmail = (sec.google_email ?? "").toLowerCase();
   const ignore = sec.gmail_ignore_senders.map(x => x.toLowerCase());
   const candidates: Mail[] = [];
+  const seenInRun = new Set<string>();
   let fetched = 0;
   for (const id of ids) {
     const m = await g(`messages/${id}`, { format: "full" });
@@ -87,10 +88,12 @@ async function runForUser(db: SupabaseClient, uid: string) {
     if (!mail.labels.includes("INBOX")) skip = "not inbox";
     else if (mail.labels.some(l => ["CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL", "CATEGORY_FORUMS", "SPAM"].includes(l))) skip = "promotions/social";
     else if (mail.unsubscribe) skip = "newsletter";
-    else if (/no-?reply|donotreply|notification|mailer-daemon|alerts?@|newsletter|marketing/i.test(mail.fromEmail)) skip = "automated sender";
+    else if (/no-?reply|donotreply|notification|mailer-daemon|alerts?@|newsletter|marketing|@notify\.|notifications?@|@mailer\.|@bounce/i.test(mail.fromEmail)) skip = "automated sender";
     else if (mail.fromEmail === selfEmail) skip = "sent by me";
     else if (ignore.some(x => mail.fromEmail.includes(x))) skip = "ignored sender";
     else if (people.find(p => p.emails.map(e => e.toLowerCase()).includes(mail.fromEmail))?.trust_level === "ignore") skip = "ignored person";
+    else if (seenInRun.has(`${mail.fromEmail}|${mail.subject}`)) skip = "duplicate in run";
+    if (!skip) seenInRun.add(`${mail.fromEmail}|${mail.subject}`);
     await db.from("messages").upsert({ user_id: uid, channel: "gmail", external_id: mail.id, thread_id: mail.threadId, sender_name: mail.fromName, sender_handle: mail.fromEmail, sent_at: mail.date, subject: mail.subject, body: skip ? null : redact(mail.body).slice(0, 3000), link: `https://mail.google.com/mail/u/0/#inbox/${mail.id}`, skipped_reason: skip, processed_at: skip ? new Date().toISOString() : null, person_id: people.find(p => p.emails.map(e => e.toLowerCase()).includes(mail.fromEmail))?.id ?? null }, { onConflict: "user_id,channel,external_id" });
     if (!skip) candidates.push(mail);
     if (candidates.length >= MAX_PER_RUN) break;
@@ -98,6 +101,7 @@ async function runForUser(db: SupabaseClient, uid: string) {
 
   // ---- AI extraction
   let created = 0;
+  const insertErrors: string[] = [];
   const { data: openRows } = await db.from("tasks").select("id,title,person_id,due_at,status").eq("user_id", uid).is("deleted_at", null).not("status", "in", "(done,cancelled)").eq("review_state", "accepted");
   const openTasks = (openRows ?? []) as OpenTask[];
   for (const mail of candidates) {
@@ -119,19 +123,20 @@ async function runForUser(db: SupabaseClient, uid: string) {
           if (t.signal === "follow_up") { const cur = senderTasks.find(x => x.id === t.existing_task_id); await db.from("tasks").update({ priority: 2 }).eq("id", t.existing_task_id).gt("priority", 2); void cur; }
           continue;
         }
-        const { data: row } = await db.from("tasks").insert({
+        const { data: row, error: insErr } = await db.from("tasks").insert({
           user_id: uid, title: t.title.slice(0, 200), description: t.details || null, status: "inbox", priority: t.priority,
           due_at: t.due_iso || null, due_has_time: !!t.due_has_time, person_id: t.kind === "commitment" ? null : (person?.id ?? null), waiting_on_person_id: t.kind === "commitment" ? (person?.id ?? null) : null,
           source_kind: "gmail", source_ref: mail.id, source_link: `https://mail.google.com/mail/u/0/#inbox/${mail.id}`, source_quote: t.quote?.slice(0, 300) ?? null, confidence: t.confidence,
           review_state: person?.trust_level === "auto_accept" ? "accepted" : "suggested", ai_meta: { reason: out.reason, due_raw: t.due_raw, kind: t.kind, model: sec.model_extract, subject: mail.subject },
         }).select("id").single();
+        if (insErr) { console.error("task insert failed", JSON.stringify(insErr)); insertErrors.push(`${insErr.code ?? ""} ${insErr.message ?? ""} ${insErr.details ?? ""}`.trim()); }
         if (row) { ids.push(row.id); created++; }
       }
     }
     await db.from("messages").update({ processed_at: new Date().toISOString(), extraction: out ?? {}, task_ids: ids }).eq("user_id", uid).eq("channel", "gmail").eq("external_id", mail.id);
   }
   await db.from("user_secrets").update({ gmail_history_id: prof.historyId ? String(prof.historyId) : sec.gmail_history_id, gmail_last_sync_at: new Date().toISOString() }).eq("user_id", uid);
-  return finish({ fetched, candidates: candidates.length, created_tasks: created });
+  return finish({ fetched, candidates: candidates.length, created_tasks: created, error: insertErrors.length ? `${insertErrors.length} task insert(s) failed: ${insertErrors[0]}`.slice(0, 500) : null });
 }
 
 // ---------- helpers
