@@ -118,6 +118,7 @@ function SubRow({ t }: { t: Task }) {
 function describe(ev: TaskEvent): string {
   const who = ev.actor === "ai" ? "AI" : "You";
   const ch = ev.changes ?? {};
+  if (ev.note) return ev.note;
   switch (ev.kind) {
     case "created": return `${who} created this task`;
     case "ai_suggested": return "AI suggested this task";

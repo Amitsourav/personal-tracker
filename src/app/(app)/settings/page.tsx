@@ -2,6 +2,8 @@
 import { useStore } from "@/lib/store";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
+import { Suspense } from "react";
+import { IntegrationsSettings } from "@/components/IntegrationsSettings";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -33,9 +35,7 @@ export default function Settings() {
           <Row label="Work days"><div className="flex gap-1">{DAYS.map((d, i) => <button key={d} className={`btn sm ${profile.work_days.includes(i) ? "primary" : ""}`} onClick={() => toggleDay(i)}>{d}</button>)}</div></Row>
           <Row label="Day starts / ends"><div className="flex gap-2"><input type="time" className="field w-[120px]" defaultValue={profile.day_start.slice(0, 5)} onBlur={e => updateProfile({ day_start: e.target.value })} /><input type="time" className="field w-[120px]" defaultValue={profile.day_end.slice(0, 5)} onBlur={e => updateProfile({ day_end: e.target.value })} /></div></Row>
         </Section>
-        <Section title="AI & connections" hint="Coming in Phase 2: OpenRouter key, Gmail and Google Calendar connections, model choice and spend cap.">
-          <div className="text-[12px] text-ink-3">Not yet available.</div>
-        </Section>
+        <Suspense><IntegrationsSettings /></Suspense>
         <Section title="Your data" hint="Everything stays in your own database. Export anytime.">
           <div className="flex gap-2"><button className="btn sm" onClick={exportJson}>Export JSON</button><button className="btn sm" onClick={exportCsv}>Export tasks CSV</button></div>
         </Section>

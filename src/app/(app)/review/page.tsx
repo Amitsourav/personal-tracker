@@ -6,11 +6,12 @@ import { fmtDue } from "@/lib/dates";
 import { Check, X, Sparkles, ExternalLink, Pencil } from "lucide-react";
 
 export default function Review() {
-  const { tasks, people, projects, updateTask, select, toast } = useStore();
+  const { tasks, people, projects, updateTask, updatePerson, select, toast } = useStore();
   const suggested = tasks.filter(t => t.review_state === "suggested").sort((a, b) => b.created_at.localeCompare(a.created_at));
   return (
     <div className="h-full flex flex-col">
-      <header className="flex items-center gap-2 px-4 h-12 border-b border-line"><h1 className="font-semibold text-[15px]">Review</h1><span className="text-[11px] text-ink-3 tnum">{suggested.length}</span><span className="text-[11px] text-ink-3 hidden sm:inline">· Tasks the AI found in your messages. Nothing is added until you accept it.</span></header>
+      <header className="flex items-center gap-2 px-4 h-12 border-b border-line"><h1 className="font-semibold text-[15px]">Review</h1><span className="text-[11px] text-ink-3 tnum">{suggested.length}</span><span className="text-[11px] text-ink-3 hidden sm:inline">· Tasks the AI found in your messages. Nothing is added until you accept it.</span>
+        {suggested.length > 1 && <button className="btn sm ml-auto" onClick={() => { suggested.forEach(t => updateTask(t.id, { review_state: "accepted" })); toast(`Accepted ${suggested.length} tasks`); }}><Check size={13} /> Accept all</button>}</header>
       <div className="flex-1 overflow-auto p-4">
         {!suggested.length ? (
           <Empty text="Nothing to review" sub="Once Gmail and WhatsApp are connected (Phase 2–3), suggested tasks will appear here for you to accept or reject." />
@@ -33,12 +34,14 @@ export default function Review() {
                         {t.source_link && <a className="text-accent flex items-center gap-0.5" href={t.source_link} target="_blank" rel="noreferrer">source <ExternalLink size={10} /></a>}
                       </div>
                       {t.source_quote && <blockquote className="mt-1.5 text-[12px] text-ink-2 border-l-2 border-line pl-2 italic">“{t.source_quote}”</blockquote>}
+                      {(t.ai_meta as { reason?: string; due_raw?: string; subject?: string; kind?: string }).subject && <div className="mt-1 text-[11.5px] text-ink-3">Email: {(t.ai_meta as { subject?: string }).subject}{(t.ai_meta as { due_raw?: string }).due_raw && <> · deadline read from “{(t.ai_meta as { due_raw?: string }).due_raw}”</>}{(t.ai_meta as { kind?: string }).kind === "commitment" && <> · <b>they</b> promised this to you</>}</div>}
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 pl-6">
                     <button className="btn primary sm" onClick={() => { updateTask(t.id, { review_state: "accepted" }); toast("Accepted"); }}><Check size={13} /> Accept</button>
                     <button className="btn sm" onClick={() => select(t.id)}><Pencil size={13} /> Edit</button>
                     <button className="btn ghost sm text-danger" onClick={() => { updateTask(t.id, { review_state: "rejected" }); toast("Rejected"); }}><X size={13} /> Reject</button>
+                    {person && person.trust_level === "review" && <span className="ml-auto flex items-center gap-1 text-[11px] text-ink-3">{person.name}:<button className="btn ghost sm" onClick={() => { updatePerson(person.id, { trust_level: "auto_accept" }); toast(`Tasks from ${person.name} will be added automatically`); }}>always accept</button><button className="btn ghost sm" onClick={() => { updatePerson(person.id, { trust_level: "ignore" }); updateTask(t.id, { review_state: "rejected" }); toast(`Ignoring ${person.name}`); }}>ignore</button></span>}
                   </div>
                 </div>
               );
