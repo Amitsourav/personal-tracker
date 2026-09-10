@@ -22,7 +22,16 @@ Two real bugs were found and fixed getting there:
 ### Still open (not blocking use)
 1. **Google app is in Testing mode — the Gmail connection expires ~18 Sept 2026.** Amit is on the Test users list; publishing is blocked until the Branding page is completed, which needs a privacy policy + terms URL. Next step: add `/privacy` and `/terms` pages to the app, fill Branding, then Audience → Publish app.
 2. Google sign-in provider (Supabase → Auth → Providers → Google) never enabled — magic link works, so this is cosmetic.
-3. Tuning on ~100 real emails: watch `sync_runs`, `ai_usage`, and `messages.skipped_reason`; adjust the prefilter and prompt. First real extraction (Deepak Agrawal, invoice changes) was correct at 0.95 confidence.
+
+## Tuning backlog — DEFERRED BY AMIT (11 Sept 2026)
+Amit's call: do not tune phase by phase. Build all the phases first, then do one tuning pass over everything at the end. Collect items here as they are noticed; do not stop to fix them mid-build unless they block a phase.
+
+- **Gmail prefilter**: tune on ~100 real emails. Watch `messages.skipped_reason` for false skips and `sync_runs` / `ai_usage` for cost. First real extraction (Deepak Agrawal, invoice changes) was correct at 0.95 confidence, so the prompt is a reasonable baseline.
+- **Extraction prompt**: Hinglish deadline handling, priority calibration, `commitment` vs `request` split, confidence floor (currently 0.35).
+- **`MAX_PER_RUN` = 25 and 7-day window**: re-check once real volume is known.
+- **Model choice per feature**: reading is `google/gemini-3.7-flash`, planning `anthropic/claude-sonnet-5`; revisit against real accuracy and spend.
+- **Monthly cap** $10 — revisit once WhatsApp volume lands, since it will dominate call count.
+- Chrono parses English only; Hinglish words are mapped in `src/lib/quickadd.ts` (`HINGLISH` table) — extend during the tuning pass.
 
 ## Phase 3 — WhatsApp capture (design decided)
 - Mac helper (Node or Python script + `launchd` agent) reads WhatsApp Desktop's local SQLite **read-only**: `~/Library/Group Containers/group.net.whatsapp.WhatsApp.shared/ChatStorage.sqlite` (tables `ZWAMESSAGE`, `ZWACHATSESSION`, `ZWAPROFILEPUSHNAME`; Core Data timestamps = seconds since 2001-01-01). Needs **Full Disk Access** for the helper's binary. Copy the DB to a temp file before opening (WAL).
