@@ -34,7 +34,7 @@ export function TaskDetail() {
   const done = task.status === "done";
 
   return (
-    <aside className="w-full md:w-[400px] lg:w-[440px] flex-none h-full flex flex-col bg-panel border-l border-line fade-in">
+    <aside className="w-full md:w-[400px] lg:w-[440px] flex-none h-full flex flex-col bg-panel border-l border-line slide-in">
       <div className="flex items-center gap-1 h-11 px-3 border-b border-line">
         {parent && <button className="text-[12px] text-ink-3 hover:text-ink flex items-center gap-1 truncate max-w-[200px]" onClick={() => select(parent.id)}>{parent.title} <ChevronRight size={12} /></button>}
         <div className="ml-auto flex items-center gap-1">

@@ -1,27 +1,66 @@
 @import "tailwindcss";
 
+/* ─────────────────────────────────────────────────────────────────────────
+   Linear design system.
+
+   Dark is the canonical direction: canvas #010102 with a four-step surface
+   ladder carrying hierarchy through hairline borders rather than shadows, and
+   the lavender #5e6ad2 spent scarcely — brand mark, primary action, focus ring,
+   selection. Light is derived from the same system's inverse surfaces, because
+   Amit works in both.
+
+   Token names are unchanged from the previous system, so every component picks
+   this up without edits.
+   ───────────────────────────────────────────────────────────────────────── */
+
 :root {
-  --bg: #F3F4F7; --panel: #FFFFFF; --panel-2: #F8F9FB; --ink: #171C26; --ink-2: #4B5566; --ink-3: #8A94A6; --line: #E3E6EC; --line-2: #EEF0F4;
-  --accent: #3144C2; --accent-ink: #FFFFFF; --accent-soft: #E9ECFB; --hover: #F1F3F8; --selected: #E9ECFB;
-  --p1: #C8281B; --p1-soft: #FBE8E6; --p2: #C06600; --p2-soft: #FCF0DF; --p3: #2662B8; --p3-soft: #E4EEFB; --p4: #8A94A6;
-  --ok: #1D7447; --ok-soft: #E1F2E8; --warn: #9A5B00; --danger: #B42318;
-  --shadow: 0 1px 2px rgba(20,24,40,.06), 0 8px 24px rgba(20,24,40,.08);
+  /* Light — built from Linear's inverse surfaces. */
+  --bg: #FFFFFF; --panel: #FBFBFC; --panel-2: #F5F6F6;
+  --ink: #08090A; --ink-2: #4A4F57; --ink-3: #787D85;
+  --line: #E5E6E8; --line-2: #EDEEEF;
+  --accent: #4C55B8; --accent-ink: #FFFFFF; --accent-soft: #EEEFFB;
+  --hover: #F5F6F6; --selected: #EEEFFB;
+  /* Priority tags: Linear's product palette, not its marketing chrome — the
+     one place the system admits colour beyond lavender. */
+  --p1: #C4314B; --p1-soft: #FBECEF; --p2: #B77416; --p2-soft: #FBF2E6;
+  --p3: #4C55B8; --p3-soft: #EEEFFB; --p4: #8A8F98;
+  --ok: #1F8A3B; --ok-soft: #E8F5EB; --warn: #B77416; --danger: #C4314B;
+
+  --shadow: 0 1px 2px rgba(8,9,10,.04), 0 8px 24px rgba(8,9,10,.06);
+  --edge: inset 0 1px 0 rgba(255,255,255,.9);
+
+  /* Motion. One curve, three speeds — everything that moves shares them. */
+  --ease: cubic-bezier(.32,.72,0,1);
+  --fast: 110ms; --base: 180ms; --slow: 320ms;
+
+  --r-xs: 4px; --r-sm: 6px; --r-md: 8px; --r-lg: 12px; --r-xl: 16px;
 }
+
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0F1219; --panel: #161A23; --panel-2: #1B2029; --ink: #E6E9EF; --ink-2: #A6AFBF; --ink-3: #6B7484; --line: #262C38; --line-2: #1F2530;
-    --accent: #8C9BFF; --accent-ink: #0F1219; --accent-soft: #232A4B; --hover: #1D222D; --selected: #232A4B;
-    --p1: #F0857A; --p1-soft: #3A1E1B; --p2: #E9A94F; --p2-soft: #35280F; --p3: #7FB0F5; --p3-soft: #1A2A44; --p4: #6B7484;
-    --ok: #6BD39C; --ok-soft: #14291E; --warn: #E9A94F; --danger: #F0857A;
-    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 12px 32px rgba(0,0,0,.5);
+    --bg: #010102; --panel: #0F1011; --panel-2: #141516;
+    --ink: #F7F8F8; --ink-2: #8A8F98; --ink-3: #62666D;
+    --line: #23252A; --line-2: #1B1C1F;
+    --accent: #5E6AD2; --accent-ink: #FFFFFF; --accent-soft: #1E2039;
+    --hover: #18191A; --selected: #1E2039;
+    --p1: #E5484D; --p1-soft: #2C1618; --p2: #E2A33C; --p2-soft: #2A2011;
+    --p3: #7A83E8; --p3-soft: #1C1E35; --p4: #62666D;
+    --ok: #27A644; --ok-soft: #10240F; --warn: #E2A33C; --danger: #E5484D;
+    --shadow: 0 0 0 1px rgba(0,0,0,.4), 0 16px 40px rgba(0,0,0,.55);
+    --edge: inset 0 1px 0 rgba(255,255,255,.04);
   }
 }
 :root[data-theme="dark"] {
-  --bg: #0F1219; --panel: #161A23; --panel-2: #1B2029; --ink: #E6E9EF; --ink-2: #A6AFBF; --ink-3: #6B7484; --line: #262C38; --line-2: #1F2530;
-  --accent: #8C9BFF; --accent-ink: #0F1219; --accent-soft: #232A4B; --hover: #1D222D; --selected: #232A4B;
-  --p1: #F0857A; --p1-soft: #3A1E1B; --p2: #E9A94F; --p2-soft: #35280F; --p3: #7FB0F5; --p3-soft: #1A2A44; --p4: #6B7484;
-  --ok: #6BD39C; --ok-soft: #14291E; --warn: #E9A94F; --danger: #F0857A;
-  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 12px 32px rgba(0,0,0,.5);
+  --bg: #010102; --panel: #0F1011; --panel-2: #141516;
+  --ink: #F7F8F8; --ink-2: #8A8F98; --ink-3: #62666D;
+  --line: #23252A; --line-2: #1B1C1F;
+  --accent: #5E6AD2; --accent-ink: #FFFFFF; --accent-soft: #1E2039;
+  --hover: #18191A; --selected: #1E2039;
+  --p1: #E5484D; --p1-soft: #2C1618; --p2: #E2A33C; --p2-soft: #2A2011;
+  --p3: #7A83E8; --p3-soft: #1C1E35; --p4: #62666D;
+  --ok: #27A644; --ok-soft: #10240F; --warn: #E2A33C; --danger: #E5484D;
+  --shadow: 0 0 0 1px rgba(0,0,0,.4), 0 16px 40px rgba(0,0,0,.55);
+  --edge: inset 0 1px 0 rgba(255,255,255,.04);
 }
 
 @theme inline {
@@ -33,40 +72,142 @@
   --color-p1: var(--p1); --color-p2: var(--p2); --color-p3: var(--p3); --color-p4: var(--p4);
   --color-p1-soft: var(--p1-soft); --color-p2-soft: var(--p2-soft); --color-p3-soft: var(--p3-soft);
   --color-ok: var(--ok); --color-ok-soft: var(--ok-soft); --color-warn: var(--warn); --color-danger: var(--danger);
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: var(--font-geist-sans), "SF Pro Display", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
+/* ── Base ───────────────────────────────────────────────────────────────── */
 html, body { height: 100%; }
-body { background: var(--bg); color: var(--ink); font-family: var(--font-sans); font-size: 13px; line-height: 1.45; -webkit-font-smoothing: antialiased; overscroll-behavior: none; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-sans);
+  font-size: 13px; line-height: 1.45;
+  /* Linear's signature: tracking pulls negative as size grows. */
+  letter-spacing: -0.011em;
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior: none;
+  text-rendering: optimizeLegibility;
+}
+h1, h2, h3 { letter-spacing: -0.022em; }
+
+/* Thin, self-coloured scrollbars — a pale track on the dark canvas is the
+   fastest way to make a dark UI look cheap. */
 * { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
-::selection { background: var(--accent-soft); }
-button, input, select, textarea { font: inherit; color: inherit; }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: var(--line); border-radius: 99px;
+  border: 2px solid transparent; background-clip: content-box;
+  transition: background var(--base) var(--ease);
+}
+*::-webkit-scrollbar-thumb:hover { background: var(--ink-3); background-clip: content-box; }
+
+::selection { background: var(--accent-soft); color: var(--ink); }
+button, input, select, textarea { font: inherit; color: inherit; letter-spacing: inherit; }
 input::placeholder, textarea::placeholder { color: var(--ink-3); }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 4px; }
-kbd { font-family: var(--font-mono); font-size: 10.5px; padding: 1px 5px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; color: var(--ink-2); background: var(--panel-2); }
+
+/* Level 4 in the spec: a 2px focus ring in the accent, at half strength. */
+:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 1px; border-radius: var(--r-xs);
+}
+
+kbd {
+  font-family: var(--font-mono); font-size: 10.5px; padding: 1px 5px;
+  border: 1px solid var(--line); border-bottom-width: 2px; border-radius: var(--r-xs);
+  color: var(--ink-2); background: var(--panel-2);
+}
 .tnum { font-variant-numeric: tabular-nums; }
+
+/* ── Interaction ────────────────────────────────────────────────────────── */
+.row-hover { transition: background var(--fast) var(--ease); }
 .row-hover:hover { background: var(--hover); }
-.checkbox { width: 15px; height: 15px; border: 1.5px solid var(--ink-3); border-radius: 4px; flex: none; display: grid; place-items: center; background: var(--panel); transition: all .12s; }
-.checkbox:hover { border-color: var(--accent); }
+
+.checkbox {
+  width: 15px; height: 15px; border: 1.5px solid var(--ink-3); border-radius: var(--r-xs);
+  flex: none; display: grid; place-items: center; background: transparent;
+  transition: border-color var(--base) var(--ease), background var(--base) var(--ease),
+              transform var(--fast) var(--ease);
+}
+.checkbox:hover { border-color: var(--accent); transform: scale(1.08); }
+.checkbox:active { transform: scale(.94); }
 .checkbox.done { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .checkbox.p1 { border-color: var(--p1); } .checkbox.p2 { border-color: var(--p2); } .checkbox.p3 { border-color: var(--p3); }
-.pill { display: inline-flex; align-items: center; gap: 4px; padding: 0 6px; height: 18px; border-radius: 4px; font-size: 11px; font-weight: 500; white-space: nowrap; }
-.btn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font-weight: 500; cursor: pointer; }
-.btn:hover { background: var(--hover); }
-.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-.btn.primary:hover { filter: brightness(1.08); }
+
+.pill {
+  display: inline-flex; align-items: center; gap: 4px; padding: 0 6px; height: 18px;
+  border-radius: var(--r-xs); font-size: 11px; font-weight: 500; white-space: nowrap;
+  letter-spacing: 0; transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+
+/* Buttons: 8px corners per the spec — Linear never pill-rounds an action. */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px;
+  border-radius: var(--r-md); border: 1px solid var(--line);
+  background: var(--panel); color: var(--ink); font-weight: 500; cursor: pointer;
+  letter-spacing: -0.006em;
+  transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease),
+              color var(--fast) var(--ease), transform var(--fast) var(--ease),
+              opacity var(--fast) var(--ease);
+}
+.btn:hover { background: var(--hover); border-color: var(--line); }
+.btn:active { transform: scale(.975); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+.btn.primary:hover { background: color-mix(in srgb, var(--accent) 82%, white); }
 .btn.ghost { border-color: transparent; background: transparent; color: var(--ink-2); }
 .btn.ghost:hover { background: var(--hover); color: var(--ink); }
 .btn.sm { height: 24px; padding: 0 8px; font-size: 12px; }
-.field { height: 28px; padding: 0 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); width: 100%; }
-.field:focus { border-color: var(--accent); outline: none; }
-.menu { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); padding: 4px; min-width: 180px; }
-.menu-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 5px 8px; border-radius: 5px; text-align: left; cursor: pointer; }
+.btn:disabled { opacity: .45; pointer-events: none; }
+
+.field {
+  height: 28px; padding: 0 8px; border-radius: var(--r-md);
+  border: 1px solid var(--line); background: var(--panel); width: 100%;
+  transition: border-color var(--base) var(--ease), box-shadow var(--base) var(--ease),
+              background var(--base) var(--ease);
+}
+.field:hover { border-color: color-mix(in srgb, var(--line) 55%, var(--ink-3)); }
+.field:focus {
+  border-color: var(--accent); outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+/* Surfaces lift by colour and hairline, never by shadow — plus the faint top
+   edge highlight that gives a dark panel its rendered feel. */
+.menu {
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--r-lg);
+  box-shadow: var(--shadow), var(--edge); padding: 4px; min-width: 180px;
+  animation: pop var(--base) var(--ease);
+  transform-origin: var(--pop-origin, top left);
+}
+.menu-item {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 5px 8px;
+  border-radius: var(--r-sm); text-align: left; cursor: pointer;
+  transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+}
 .menu-item:hover, .menu-item[data-active="true"] { background: var(--hover); }
+
 .grid-line { background-image: linear-gradient(var(--line-2) 1px, transparent 1px); }
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
-.fade-in { animation: fade .12s ease-out; }
-@keyframes fade { from { opacity: 0; transform: translateY(2px);} to { opacity: 1; transform: none; } }
 .strike { text-decoration: line-through; color: var(--ink-3); }
-[cmdk-list] { max-height: 320px; overflow: auto; }
+[cmdk-list] { max-height: 320px; overflow: auto; scroll-behavior: smooth; }
+
+/* ── Motion ─────────────────────────────────────────────────────────────── */
+.fade-in { animation: fade var(--base) var(--ease); }
+@keyframes fade {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes pop {
+  from { opacity: 0; transform: scale(.97) translateY(-3px); }
+  to { opacity: 1; transform: none; }
+}
+/* Panels arriving from the side (task detail) settle rather than snap. */
+.slide-in { animation: slide var(--slow) var(--ease); }
+@keyframes slide {
+  from { opacity: 0; transform: translateX(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  * { transition: none !important; animation: none !important; }
+}
