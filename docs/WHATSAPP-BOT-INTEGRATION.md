@@ -1,8 +1,11 @@
 # Brief: forward task messages from `whatsappbot` to Tracker
 
-**Paste this file into the `Amitsourav/whatsappbot` repo and implement it there.**
-Nothing in this document requires changes to Tracker — the receiving end is built,
-deployed and tested.
+> **STATUS — 11 Sep 2026: IMPLEMENTED AND LIVE ON BOTH SIDES. Not a work item.**
+> The bot side (outbox, `tracker_enabled`, flush worker, orchestrator hook, panel
+> toggle, tests) is built and running; one group is in trial. The Tracker side
+> (`ingest-whatsapp`) is deployed and accepts the `Task` convention. This file is
+> now a **technical reference** describing what exists. Handing it to someone as a
+> build task would have them rebuild working software.
 
 ---
 
@@ -199,16 +202,32 @@ synchronous (a SQLite insert) — no `await`, so the lead path is not delayed.
 
 1. `mentionedMe` — `message.mentions.some(p => same(p, config.tracker.ownerPhone))`
 2. `isReplyToMe` — the quoted message was sent by Amit (see §7)
-3. the text looks task-shaped — a small keyword test, case-insensitive:
+3. the message begins with the team's agreed **`Task`** marker:
 
-```js
-const TASKISH = /\b(bhej|bhejna|bhej dena|kar dena|karna hai|kar do|dekh lena|dekh lo|check kar|send|share|update|pending|follow ?up|kya hua|reminder|complete|submit|draft|prepare|arrange|confirm|kal tak|aaj tak|parso|eod|asap|urgent)\b/i;
+```
+Task
+invoice update kar dena
 ```
 
-Rule 3 is deliberately loose; Tracker's AI is the real filter and it is strict
-(anything below 0.35 confidence is discarded, and messages aimed at other people
-are ignored). The keyword test exists only to keep pure banter out of the AI and
-off the bill.
+```js
+const EXPLICIT_TASK = /^\s*task\b[:\-\u2013]?\s*/i;
+```
+
+Accepted forms: `Task` on its own line, `Task:` and `Task -`, case-insensitive.
+`\btask\b` deliberately does **not** match `Tasks`, so "Tasks are pending from
+last week" is not captured.
+
+**These carry `mentionedMe: false` and `isReplyToMe: false`** — nobody tagged
+anyone. That is expected and correct. Tracker detects the `Task` prefix itself
+and treats those messages as explicit tasks for Amit at >= 0.8 confidence, so
+they are never discarded for lacking flags. No extra field is needed in the
+payload.
+
+> **Superseded:** an earlier draft of this brief proposed a loose keyword regex
+> (`bhej|kar dena|pending|urgent|…`) for rule 3. The team adopted the `Task`
+> marker instead, which is deliberate rather than inferred and far less noisy.
+> The keyword rule is not implemented on either side — ignore it if you see it
+> quoted anywhere.
 
 `same()` compares phone numbers ignoring `+`, spaces and a missing country code —
 match the last 10 digits when both are ≥ 10 long.
@@ -268,7 +287,9 @@ Match the existing `node --test` style in `test/`:
 
 - `maybeQueue` skips: tracker disabled group, `fromMe`, Amit's own message,
   noise, commands, empty text, non-group
-- `maybeQueue` queues: tagged, reply-to-me, task-shaped keyword
+- `maybeQueue` queues: tagged, reply-to-me, and a message beginning `Task`
+  (`Task` on its own line, `Task:`, `Task -`)
+- `maybeQueue` does **not** queue `Tasks are pending…` (plural must not match)
 - enqueueing the same `wa_message_id` twice inserts one row
 - `flush` marks sent on 200, retries on 500, stops on 401 (stub `fetch`)
 - a throwing `fetch` does not propagate out of `flush`
