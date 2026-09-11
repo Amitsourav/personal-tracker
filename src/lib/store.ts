@@ -130,7 +130,15 @@ export const useStore = create<State>((set, get) => ({
     if (!t) return;
     const prevStatus = t.status;
     if (done) {
-      await get().updateTask(id, { status: "done", completed_at: new Date().toISOString() });
+      // Finishing work someone else asked for records that Amit believes it is
+      // done — not that they received it. Those are different facts, and the
+      // verification ladder keeps them apart. Work nobody asked for stays
+      // 'none': there is no one to confirm it and nagging would be noise.
+      const needsConfirming = !!t.person_id && t.verification === "none";
+      await get().updateTask(id, {
+        status: "done", completed_at: new Date().toISOString(),
+        ...(needsConfirming ? { verification: "self" as const } : {}),
+      });
       // recurring → create the next occurrence
       if (t.recurrence) {
         try {
@@ -145,7 +153,10 @@ export const useStore = create<State>((set, get) => ({
       }
       get().toast("Completed", () => get().updateTask(id, { status: prevStatus === "done" ? "todo" : prevStatus, completed_at: null }));
     } else {
-      await get().updateTask(id, { status: "todo", completed_at: null });
+      await get().updateTask(id, {
+        status: "todo", completed_at: null,
+        ...(t.verification === "self" ? { verification: "none" as const, verified_at: null } : {}),
+      });
     }
   },
 

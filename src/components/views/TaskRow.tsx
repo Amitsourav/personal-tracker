@@ -28,6 +28,9 @@ export function TaskRow({ task, showProject = true, sortable = false, depth = 0 
         {done && <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 5l2 2 4-4" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" /></svg>}
       </button>
       <span className={clsx("flex-1 min-w-0 truncate text-[13px]", done && "strike", task.status === "waiting" && "text-ink-2")}>{task.title}</span>
+      {task.verification === "self" && (
+        <span className="pill bg-p2-soft text-p2 flex-none" title="You marked this done — nobody has confirmed they got it">unconfirmed</span>
+      )}
       {task.description && <MessageSquareText size={12} className="text-ink-3 flex-none" />}
       {task.recurrence && <Repeat size={12} className="text-ink-3 flex-none" />}
       {subs.length > 0 && <span className="text-[11px] text-ink-3 tnum flex-none">{subDone}/{subs.length}</span>}

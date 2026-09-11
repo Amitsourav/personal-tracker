@@ -28,6 +28,10 @@ export interface Task {
   source_quote: string | null;
   confidence: number | null;
   review_state: ReviewState;
+  /** Only set when someone else asked for this — see the verification ladder. */
+  verification: "none" | "self" | "evidence" | "confirmed";
+  verified_at: string | null;
+  verification_note: string | null;
   ai_meta: Record<string, unknown>;
   sort_order: number;
   created_at: string;

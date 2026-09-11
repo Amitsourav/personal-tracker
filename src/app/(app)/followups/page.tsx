@@ -7,6 +7,7 @@ import { Empty } from "@/components/views/ListView";
 import { Sparkles, Check } from "lucide-react";
 import { DraftModal } from "@/components/DraftModal";
 import { PageHeader, PageBody } from "@/components/PageHeader";
+import { NeedsConfirming } from "@/components/NeedsConfirming";
 import type { Task } from "@/lib/types";
 
 /**
@@ -46,6 +47,7 @@ export default function FollowUps() {
         } />
 
       <PageBody className="grid gap-6">
+        <NeedsConfirming />
         {!waiting.length ? (
           <Empty text="Nothing you're waiting on. Tasks appear here when someone owes you something — set 'waiting on' in a task, or accept a suggestion where someone promised you something." />
         ) : <>
