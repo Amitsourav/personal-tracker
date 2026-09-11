@@ -81,132 +81,140 @@
   --font-mono: ui-monospace, "SF Mono", SFMono-Regular, var(--font-geist-mono), Menlo, monospace;
 }
 
-/* ── Base ───────────────────────────────────────────────────────────────── */
-html, body { height: 100%; }
-html { scroll-behavior: smooth; }
-body {
-  background: var(--bg); color: var(--ink); font-family: var(--font-sans);
-  font-size: 13.5px; line-height: 1.5;
-  letter-spacing: -0.016em;              /* SF's signature optical tightening */
-  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
-  overscroll-behavior: none;
-}
-h1, h2, h3 { letter-spacing: -0.028em; font-weight: 600; }
+/* Tailwind's layer order is theme → base → components → utilities. These
+   rules must sit in those layers, not outside them: unlayered CSS beats
+   every layered rule, so an unlayered `.btn { display: inline-flex }`
+   silently overrode `md:hidden` and every other utility on a button. */
+@layer base {
+  /* ── Base ───────────────────────────────────────────────────────────────── */
+  html, body { height: 100%; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg); color: var(--ink); font-family: var(--font-sans);
+    font-size: 13.5px; line-height: 1.5;
+    letter-spacing: -0.016em;              /* SF's signature optical tightening */
+    -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+    overscroll-behavior: none;
+  }
+  h1, h2, h3 { letter-spacing: -0.028em; font-weight: 600; }
 
-* { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
-*::-webkit-scrollbar { width: 9px; height: 9px; }
-*::-webkit-scrollbar-track { background: transparent; }
-*::-webkit-scrollbar-thumb {
-  background: var(--line); border-radius: 99px;
-  border: 2.5px solid transparent; background-clip: content-box;
-  transition: background var(--base) var(--ease);
-}
-*::-webkit-scrollbar-thumb:hover { background: var(--ink-3); background-clip: content-box; }
+  * { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+  *::-webkit-scrollbar { width: 9px; height: 9px; }
+  *::-webkit-scrollbar-track { background: transparent; }
+  *::-webkit-scrollbar-thumb {
+    background: var(--line); border-radius: 99px;
+    border: 2.5px solid transparent; background-clip: content-box;
+    transition: background var(--base) var(--ease);
+  }
+  *::-webkit-scrollbar-thumb:hover { background: var(--ink-3); background-clip: content-box; }
 
-::selection { background: var(--accent-soft); color: var(--ink); }
-button, input, select, textarea { font: inherit; color: inherit; letter-spacing: inherit; }
-input::placeholder, textarea::placeholder { color: var(--ink-3); }
-:focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--accent) 45%, transparent);
-  outline-offset: 2px; border-radius: var(--r-sm);
-}
+  ::selection { background: var(--accent-soft); color: var(--ink); }
+  button, input, select, textarea { font: inherit; color: inherit; letter-spacing: inherit; }
+  input::placeholder, textarea::placeholder { color: var(--ink-3); }
+  :focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--accent) 45%, transparent);
+    outline-offset: 2px; border-radius: var(--r-sm);
+  }
 
-kbd {
-  font-family: var(--font-mono); font-size: 10.5px; padding: 1px 5px;
-  border: 1px solid var(--line); border-radius: var(--r-xs);
-  color: var(--ink-2); background: var(--panel-2);
-}
-.tnum { font-variant-numeric: tabular-nums; }
-
-/* ── Interaction ────────────────────────────────────────────────────────── */
-.row-hover { transition: background var(--fast) var(--ease); }
-.row-hover:hover { background: var(--hover); }
-
-/* Circular checkbox — Apple's own control shape. */
-.checkbox {
-  width: 16px; height: 16px; border: 1.5px solid var(--ink-3); border-radius: 50%;
-  flex: none; display: grid; place-items: center; background: transparent;
-  transition: border-color var(--fast) var(--ease), background var(--fast) var(--ease),
-              transform var(--fast) var(--ease);
-}
-.checkbox:hover { border-color: var(--accent); }
-.checkbox:active { transform: scale(.9); }
-.checkbox.done { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-/* Priority is carried by the flag, not by tinting every checkbox — twenty
-   differently-coloured circles down the left edge is noise, not hierarchy. */
-.checkbox.p1, .checkbox.p2, .checkbox.p3 { border-color: var(--ink-3); }
-
-.pill {
-  display: inline-flex; align-items: center; gap: 4px; padding: 0 9px; height: 20px;
-  border-radius: var(--r-pill); font-size: 11.5px; font-weight: 500; white-space: nowrap;
-  letter-spacing: -0.01em;
-  transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+  kbd {
+    font-family: var(--font-mono); font-size: 10.5px; padding: 1px 5px;
+    border: 1px solid var(--line); border-radius: var(--r-xs);
+    color: var(--ink-2); background: var(--panel-2);
+  }
+  .tnum { font-variant-numeric: tabular-nums; }
 }
 
-/* The signature Apple pill. No borders, no shadows — fill and shape only. */
-.btn {
-  display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 15px;
-  border-radius: var(--r-pill); border: none;
-  background: var(--panel-2); color: var(--ink); font-weight: 500; cursor: pointer;
-  letter-spacing: -0.01em;
-  transition: background var(--fast) var(--ease), color var(--fast) var(--ease),
-              opacity var(--fast) var(--ease), transform var(--fast) var(--ease);
-}
-.btn:hover { background: color-mix(in srgb, var(--panel-2) 88%, var(--ink)); }
-.btn:active { transform: scale(.97); }
-.btn.primary { background: var(--accent); color: var(--accent-ink); }
-.btn.primary:hover { background: color-mix(in srgb, var(--accent) 88%, black); }
-.btn.ghost { background: transparent; color: var(--accent); }
-.btn.ghost:hover { background: var(--hover); }
-.btn.sm { height: 26px; padding: 0 12px; font-size: 12.5px; }
-.btn:disabled { opacity: .4; pointer-events: none; }
+@layer components {
+  /* ── Interaction ────────────────────────────────────────────────────────── */
+  .row-hover { transition: background var(--fast) var(--ease); }
+  .row-hover:hover { background: var(--hover); }
 
-.field {
-  height: 32px; padding: 0 12px; border-radius: var(--r-sm);
-  border: 1px solid var(--line); background: var(--panel); width: 100%;
-  transition: border-color var(--base) var(--ease), box-shadow var(--base) var(--ease);
-}
-.field:hover { border-color: var(--ink-3); }
-.field:focus {
-  border-color: var(--accent); outline: none;
-  box-shadow: 0 0 0 3.5px color-mix(in srgb, var(--accent) 20%, transparent);
-}
+  /* Circular checkbox — Apple's own control shape. */
+  .checkbox {
+    width: 16px; height: 16px; border: 1.5px solid var(--ink-3); border-radius: 50%;
+    flex: none; display: grid; place-items: center; background: transparent;
+    transition: border-color var(--fast) var(--ease), background var(--fast) var(--ease),
+                transform var(--fast) var(--ease);
+  }
+  .checkbox:hover { border-color: var(--accent); }
+  .checkbox:active { transform: scale(.9); }
+  .checkbox.done { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  /* Priority is carried by the flag, not by tinting every checkbox — twenty
+     differently-coloured circles down the left edge is noise, not hierarchy. */
+  .checkbox.p1, .checkbox.p2, .checkbox.p3 { border-color: var(--ink-3); }
 
-/* Floating surfaces get the one shadow plus a backdrop blur — Apple's actual
-   elevation technique for sticky and floating chrome. */
-.menu {
-  background: color-mix(in srgb, var(--panel) 80%, transparent);
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  border: .5px solid var(--line); border-radius: var(--r-lg);
-  box-shadow: var(--shadow); padding: 6px; min-width: 190px;
-  animation: pop var(--base) var(--ease);
-}
-.menu-item {
-  display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 10px;
-  border-radius: var(--r-sm); text-align: left; cursor: pointer;
-  transition: background var(--fast) var(--ease);
-}
-.menu-item:hover, .menu-item[data-active="true"] { background: var(--hover); }
+  .pill {
+    display: inline-flex; align-items: center; gap: 4px; padding: 0 9px; height: 20px;
+    border-radius: var(--r-pill); font-size: 11.5px; font-weight: 500; white-space: nowrap;
+    letter-spacing: -0.01em;
+    transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+  }
 
-.grid-line { background-image: linear-gradient(var(--line-2) 1px, transparent 1px); }
-.strike { text-decoration: line-through; color: var(--ink-3); }
-[cmdk-list] { max-height: 340px; overflow: auto; scroll-behavior: smooth; }
+  /* The signature Apple pill. No borders, no shadows — fill and shape only. */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 15px;
+    border-radius: var(--r-pill); border: none;
+    background: var(--panel-2); color: var(--ink); font-weight: 500; cursor: pointer;
+    letter-spacing: -0.01em;
+    transition: background var(--fast) var(--ease), color var(--fast) var(--ease),
+                opacity var(--fast) var(--ease), transform var(--fast) var(--ease);
+  }
+  .btn:hover { background: color-mix(in srgb, var(--panel-2) 88%, var(--ink)); }
+  .btn:active { transform: scale(.97); }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); }
+  .btn.primary:hover { background: color-mix(in srgb, var(--accent) 88%, black); }
+  .btn.ghost { background: transparent; color: var(--accent); }
+  .btn.ghost:hover { background: var(--hover); }
+  .btn.sm { height: 26px; padding: 0 12px; font-size: 12.5px; }
+  .btn:disabled { opacity: .4; pointer-events: none; }
 
-/* ── Motion: slow, soft, nothing snaps ──────────────────────────────────── */
-.fade-in { animation: fade var(--base) var(--ease); }
-@keyframes fade {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: none; }
-}
-@keyframes pop {
-  from { opacity: 0; transform: scale(.96) translateY(-4px); }
-  to { opacity: 1; transform: none; }
-}
-.slide-in { animation: slide var(--slow) var(--ease); }
-@keyframes slide {
-  from { opacity: 0; transform: translateX(16px); }
-  to { opacity: 1; transform: none; }
+  .field {
+    height: 32px; padding: 0 12px; border-radius: var(--r-sm);
+    border: 1px solid var(--line); background: var(--panel); width: 100%;
+    transition: border-color var(--base) var(--ease), box-shadow var(--base) var(--ease);
+  }
+  .field:hover { border-color: var(--ink-3); }
+  .field:focus {
+    border-color: var(--accent); outline: none;
+    box-shadow: 0 0 0 3.5px color-mix(in srgb, var(--accent) 20%, transparent);
+  }
+
+  /* Floating surfaces get the one shadow plus a backdrop blur — Apple's actual
+     elevation technique for sticky and floating chrome. */
+  .menu {
+    background: color-mix(in srgb, var(--panel) 80%, transparent);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    border: .5px solid var(--line); border-radius: var(--r-lg);
+    box-shadow: var(--shadow); padding: 6px; min-width: 190px;
+    animation: pop var(--base) var(--ease);
+  }
+  .menu-item {
+    display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 10px;
+    border-radius: var(--r-sm); text-align: left; cursor: pointer;
+    transition: background var(--fast) var(--ease);
+  }
+  .menu-item:hover, .menu-item[data-active="true"] { background: var(--hover); }
+
+  .grid-line { background-image: linear-gradient(var(--line-2) 1px, transparent 1px); }
+  .strike { text-decoration: line-through; color: var(--ink-3); }
+  [cmdk-list] { max-height: 340px; overflow: auto; scroll-behavior: smooth; }
+
+  /* ── Motion: slow, soft, nothing snaps ──────────────────────────────────── */
+  .fade-in { animation: fade var(--base) var(--ease); }
+  @keyframes fade {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes pop {
+    from { opacity: 0; transform: scale(.96) translateY(-4px); }
+    to { opacity: 1; transform: none; }
+  }
+  .slide-in { animation: slide var(--slow) var(--ease); }
+  @keyframes slide {
+    from { opacity: 0; transform: translateX(16px); }
+    to { opacity: 1; transform: none; }
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

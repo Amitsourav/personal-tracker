@@ -54,7 +54,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
       <div className={clsx("md:static fixed inset-y-0 left-0 z-40 transition-transform md:translate-x-0", nav ? "translate-x-0" : "-translate-x-full")}><Sidebar onClose={() => setNav(false)} /></div>
       {nav && <div className="fixed inset-0 bg-black/30 z-30 md:hidden" onClick={() => setNav(false)} />}
       <main className="flex-1 min-w-0 h-full flex flex-col bg-bg relative">
-        <button className="md:hidden absolute left-2 top-2.5 z-20 btn ghost sm px-1.5" onClick={() => setNav(true)} aria-label="Menu"><Menu size={16} /></button>
+        <button
+          className="md:hidden absolute left-2 top-3 z-20 h-8 w-8 grid place-items-center rounded-lg text-ink-2 hover:bg-hover"
+          onClick={() => setNav(true)} aria-label="Open menu"><Menu size={17} /></button>
         <div className={clsx("flex-1 min-h-0 md:pl-0 pl-0", "[&>div>header]:pl-12 md:[&>div>header]:pl-4")}>
           {ready ? children : <div className="grid place-items-center h-full text-ink-3 text-[12px]">Loading…</div>}
         </div>
