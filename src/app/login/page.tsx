@@ -47,6 +47,12 @@ export default function Login() {
             </button>
           </form>
         )}
+        {/* Google's OAuth review expects the policies to be reachable from the
+            sign-in screen, not only by typing the URL. */}
+        <div className="mt-5 pt-4 border-t border-line flex gap-3 justify-center text-[11.5px] text-ink-3">
+          <a className="hover:text-ink" href="/privacy">Privacy Policy</a>
+          <a className="hover:text-ink" href="/terms">Terms of Service</a>
+        </div>
       </div>
     </main>
   );

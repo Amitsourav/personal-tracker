@@ -24,7 +24,14 @@ export async function proxy(request: NextRequest) {
   );
   const { data: { user } } = await supabase.auth.getUser();
   const path = request.nextUrl.pathname;
-  const isPublic = path.startsWith("/login") || path.startsWith("/auth") || path.startsWith("/icons") || path === "/manifest.webmanifest";
+  // The policy pages must render for a signed-out visitor: Google's OAuth
+  // reviewer fetches them without a session, and a login redirect reads as
+  // "no privacy policy". google*.html covers Search Console site verification,
+  // which Google asks for when authorising a domain on the consent screen.
+  const isPublic = path.startsWith("/login") || path.startsWith("/auth")
+    || path.startsWith("/icons") || path === "/manifest.webmanifest"
+    || path === "/privacy" || path === "/terms"
+    || /^\/google[0-9a-f]+\.html$/.test(path);
   if (!user && !isPublic) {
     // API routes answer with JSON. Redirecting them to the login PAGE hands the
     // caller a 200 full of HTML, so fetch().json() yields nothing and the UI
