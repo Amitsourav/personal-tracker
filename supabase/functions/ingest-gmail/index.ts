@@ -13,16 +13,28 @@ type OpenTask = { id: string; title: string; person_id: string | null; due_at: s
 type Mail = { id: string; threadId: string; from: string; fromEmail: string; fromName: string; to: string; subject: string; date: string; body: string; labels: string[]; unsubscribe: boolean };
 
 Deno.serve(async (req) => {
-  const auth = req.headers.get("Authorization")?.replace(/^Bearer /i, "") ?? "";
+  const auth = req.headers.get("Authorization")?.replace(/^Bearer /i, "").trim() ?? "";
   const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
+  if (!auth) return json({ error: "unauthorized" }, 401);
   let userIds: string[] = [];
-  if (auth === ANON_KEY || auth === SERVICE_KEY) {
+  if (auth === SERVICE_KEY) {
+    // Full sweep. The service key is secret; the publishable key is NOT and must
+    // never be enough to trigger paid AI work.
     const { data } = await admin.from("user_secrets").select("user_id").eq("gmail_enabled", true).not("google_refresh_token", "is", null).not("openrouter_key", "is", null);
     userIds = (data ?? []).map((r: { user_id: string }) => r.user_id);
   } else {
-    const { data: { user } } = await createClient(SUPABASE_URL, ANON_KEY, { global: { headers: { Authorization: `Bearer ${auth}` } } }).auth.getUser();
-    if (!user) return json({ error: "unauthorized" }, 401);
-    userIds = [user.id];
+    // pg_cron sends the per-user sync token. It is checked first because it is a
+    // plain string compare in the DB and does not depend on the project's JWT
+    // format — the legacy anon JWT the cron used before stopped being accepted
+    // when the project moved to sb_publishable_* keys, and every scheduled run
+    // had been failing 401 since.
+    const { data: tokUser } = await admin.rpc("user_by_sync_token", { tok: auth });
+    if (tokUser) userIds = [tokUser as string];
+    else {
+      const { data: { user } } = await createClient(SUPABASE_URL, ANON_KEY, { global: { headers: { Authorization: `Bearer ${auth}` } } }).auth.getUser();
+      if (!user) return json({ error: "unauthorized" }, 401);
+      userIds = [user.id];
+    }
   }
   const results: Record<string, unknown>[] = [];
   for (const uid of userIds) {
