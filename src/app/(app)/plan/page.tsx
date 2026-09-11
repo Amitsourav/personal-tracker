@@ -12,6 +12,7 @@ type Block = {
 type Event = {
   id: string; title: string; start_at: string; end_at: string;
   all_day: boolean; self_response: string | null; html_link: string | null;
+  task_id: string | null;
 };
 
 const todayISO = () => {
@@ -36,13 +37,14 @@ export default function Plan() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const [syncing, setSyncing] = useState(false);
   const sb = createClient();
 
   const loadEvents = useCallback(async () => {
     const start = new Date(`${date}T00:00:00`);
     const end = new Date(start.getTime() + 86_400_000);
     const { data } = await sb.from("calendar_events")
-      .select("id,title,start_at,end_at,all_day,self_response,html_link")
+      .select("id,title,start_at,end_at,all_day,self_response,html_link,task_id")
       .neq("status", "cancelled")
       .lt("start_at", end.toISOString()).gt("end_at", start.toISOString())
       .order("start_at");
@@ -64,10 +66,36 @@ export default function Plan() {
 
   const live = (blocks ?? []).filter(b => !dismissed.has(b.task_id));
 
+  /** Mirror one task's block into Google. Never throws: a calendar hiccup must
+   *  not undo a plan Amit has already accepted in Tracker. */
+  const mirror = async (taskId: string) => {
+    try {
+      const r = await fetch("/api/calendar/block", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taskId }),
+      });
+      if (!r.ok) return false;
+    } catch { return false; }
+    return true;
+  };
+
   async function acceptAll() {
+    setSyncing(true);
     for (const b of live) await updateTask(b.task_id, { scheduled_at: b.start_at, duration_min: b.minutes });
-    toast(`Scheduled ${live.length} ${live.length === 1 ? "task" : "tasks"}`);
+    const results = await Promise.all(live.map(b => mirror(b.task_id)));
+    setSyncing(false);
+    const failed = results.filter(x => !x).length;
+    toast(failed
+      ? `Scheduled ${live.length}, but ${failed} did not reach Google Calendar`
+      : `Scheduled ${live.length} and added to Google Calendar`);
     setBlocks(null);
+    loadEvents();
+  }
+
+  async function unschedule(taskId: string) {
+    await updateTask(taskId, { scheduled_at: null, duration_min: null });
+    await mirror(taskId);   // scheduled_at is null now, so this removes the event
+    loadEvents();
   }
 
   const scheduled = tasks.filter(t => {
@@ -76,7 +104,9 @@ export default function Plan() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}` === date;
   }).sort((a, b) => (a.scheduled_at ?? "").localeCompare(b.scheduled_at ?? ""));
 
-  const busy = events.filter(e => !e.all_day && e.self_response !== "declined");
+  // Our own time-blocks come back on the next calendar sync; they belong in
+  // "Time-blocked", not in "Meetings", or the day looks twice as full as it is.
+  const busy = events.filter(e => !e.all_day && e.self_response !== "declined" && !e.task_id);
   const allDay = events.filter(e => e.all_day);
 
   return (
@@ -142,7 +172,10 @@ export default function Plan() {
                 ))}
               </div>
               <div className="flex gap-2 mt-2">
-                <button className="btn primary sm" onClick={acceptAll}><Check size={13} /> Accept plan</button>
+                <button className="btn primary sm" onClick={acceptAll} disabled={syncing}>
+                  {syncing ? <RefreshCw size={13} className="animate-spin" /> : <Check size={13} />}
+                  Accept plan &amp; add to Calendar
+                </button>
                 <button className="btn sm" onClick={() => setBlocks(null)}>Discard</button>
               </div>
             </>}
@@ -163,8 +196,8 @@ export default function Plan() {
                     {hhmm(t.scheduled_at!)}{t.duration_min ? <span className="text-ink-3"> · {t.duration_min}m</span> : null}
                   </span>
                   <span className="text-[13px] truncate flex items-center gap-1.5"><PriorityFlag p={t.priority} /> {t.title}</span>
-                  <button className="btn ghost sm" title="Unschedule"
-                    onClick={() => updateTask(t.id, { scheduled_at: null })}><X size={13} /></button>
+                  <button className="btn ghost sm" title="Unschedule and remove from Google Calendar"
+                    onClick={() => unschedule(t.id)}><X size={13} /></button>
                 </div>
               ))}
             </div>
