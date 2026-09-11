@@ -145,7 +145,14 @@ async function runForUser(db: SupabaseClient, uid: string) {
         if (row) { ids.push(row.id); created++; }
       }
     }
-    await db.from("messages").update({ processed_at: new Date().toISOString(), extraction: out ?? {}, task_ids: ids }).eq("user_id", uid).eq("channel", "gmail").eq("external_id", mail.id);
+    // Noise and tasks are marked seen on the way in: a task already has its own
+    // place to live, and noise is kept only so the filter stays auditable.
+    const it = out?.intake_type ?? null;
+    await db.from("messages").update({
+      processed_at: new Date().toISOString(), extraction: out ?? {}, task_ids: ids,
+      intake_type: it, intake_summary: out?.intake_summary ?? null,
+      intake_seen_at: !it || it === "noise" || it === "task" ? new Date().toISOString() : null,
+    }).eq("user_id", uid).eq("channel", "gmail").eq("external_id", mail.id);
   }
   await db.from("user_secrets").update({ gmail_history_id: prof.historyId ? String(prof.historyId) : sec.gmail_history_id, gmail_last_sync_at: new Date().toISOString() }).eq("user_id", uid);
   return finish({ fetched, candidates: candidates.length, created_tasks: created, error: insertErrors.length ? `${insertErrors.length} task insert(s) failed: ${insertErrors[0]}`.slice(0, 500) : null });
@@ -190,15 +197,27 @@ Rules:
 - Priority: 1 urgent (ASAP/today/explicit urgency), 2 high (named deadline within 2 days or from a client/boss), 3 medium, 4 low.
 - If the email is a reminder/follow-up ("any update?", "reminder", "kya hua?", "gentle ping") about one of the OPEN TASKS listed, output signal "follow_up" with that existing_task_id instead of a new task. If it says the sender finished something on that list, signal "done". Otherwise signal "new".
 - title: short imperative, ≤ 12 words, in English, naming the deliverable. quote: the exact sentence from the email that asks for it (≤ 200 chars).
-- confidence 0–1: how sure you are this is a real, still-open action for me.`;
+- confidence 0–1: how sure you are this is a real, still-open action for me.
+
+ALSO classify the email as a whole into exactly one intake_type, even when it contains no task:
+- "task" — I must do something. (Only this type creates a task.)
+- "commitment" — the sender promised something to me.
+- "request" — something is expected of me but it is not yet a concrete action.
+- "decision" — a choice is needed from me or from the group.
+- "event" — something happened or is scheduled that changes the picture.
+- "risk" — a possible negative outcome worth knowing about.
+- "opportunity" — a possible upside worth knowing about.
+- "information" — useful to know, no action. Numbers, status, context, answers.
+- "noise" — pleasantries, automated chatter, anything not worth keeping.
+intake_summary: one line in plain English from MY point of view, under 15 words. Be honest: marking noise as information is how an inbox becomes unreadable.`;
   const user = `OPEN TASKS from this sender (id → title, due):\n${senderTasks.length ? senderTasks.map(t => `${t.id} → ${t.title} (${t.due_at ?? "no date"}, ${t.status})`).join("\n") : "(none)"}\n\nEMAIL\nFrom: ${mail.fromName} <${mail.fromEmail}>\nTo: ${mail.to}\nSubject: ${mail.subject}\nSent: ${sentLocal}\n\n${redact(mail.body).slice(0, 5000)}`;
-  const schema = { type: "object", additionalProperties: false, properties: { actionable: { type: "boolean" }, reason: { type: "string" }, tasks: { type: "array", items: { type: "object", additionalProperties: false, properties: { title: { type: "string" }, details: { type: "string" }, kind: { type: "string", enum: ["request", "commitment"] }, signal: { type: "string", enum: ["new", "follow_up", "done"] }, existing_task_id: { type: ["string", "null"] }, due_raw: { type: ["string", "null"] }, due_iso: { type: ["string", "null"] }, due_has_time: { type: "boolean" }, priority: { type: "integer", minimum: 1, maximum: 4 }, quote: { type: "string" }, confidence: { type: "number" } }, required: ["title", "details", "kind", "signal", "existing_task_id", "due_raw", "due_iso", "due_has_time", "priority", "quote", "confidence"] } } }, required: ["actionable", "reason", "tasks"] };
+  const schema = { type: "object", additionalProperties: false, properties: { actionable: { type: "boolean" }, reason: { type: "string" }, intake_type: { type: "string", enum: ["task", "commitment", "request", "decision", "event", "risk", "opportunity", "information", "noise"] }, intake_summary: { type: "string" }, tasks: { type: "array", items: { type: "object", additionalProperties: false, properties: { title: { type: "string" }, details: { type: "string" }, kind: { type: "string", enum: ["request", "commitment"] }, signal: { type: "string", enum: ["new", "follow_up", "done"] }, existing_task_id: { type: ["string", "null"] }, due_raw: { type: ["string", "null"] }, due_iso: { type: ["string", "null"] }, due_has_time: { type: "boolean" }, priority: { type: "integer", minimum: 1, maximum: 4 }, quote: { type: "string" }, confidence: { type: "number" } }, required: ["title", "details", "kind", "signal", "existing_task_id", "due_raw", "due_iso", "due_has_time", "priority", "quote", "confidence"] } } }, required: ["actionable", "reason", "intake_type", "intake_summary", "tasks"] };
   const r = await fetch("https://openrouter.ai/api/v1/chat/completions", { method: "POST", headers: { Authorization: `Bearer ${sec.openrouter_key}`, "Content-Type": "application/json", "HTTP-Referer": "https://personal-tracker-eta-six.vercel.app", "X-Title": "Tracker" }, body: JSON.stringify({ model: sec.model_extract, temperature: 0.1, messages: [{ role: "system", content: system }, { role: "user", content: user }], response_format: { type: "json_schema", json_schema: { name: "extraction", strict: true, schema } }, usage: { include: true } }) });
   const j = await r.json();
   if (!r.ok) throw new Error(`OpenRouter ${r.status}: ${j?.error?.message ?? "error"}`);
   const usage = j.usage ?? {};
   await db.from("ai_usage").insert({ user_id: uid, purpose: "extract", model: sec.model_extract, input_tokens: usage.prompt_tokens ?? 0, output_tokens: usage.completion_tokens ?? 0, cost_usd: usage.cost ?? 0 });
   const content = j.choices?.[0]?.message?.content ?? "{}";
-  try { const out = JSON.parse(content.replace(/^```(?:json)?|```$/g, "").trim()); if (!out.actionable) out.tasks = []; return out as { actionable: boolean; reason: string; tasks: { title: string; details: string; kind: string; signal: string; existing_task_id: string | null; due_raw: string | null; due_iso: string | null; due_has_time: boolean; priority: 1 | 2 | 3 | 4; quote: string; confidence: number }[] }; } catch { return null; }
+  try { const out = JSON.parse(content.replace(/^```(?:json)?|```$/g, "").trim()); if (!out.actionable) out.tasks = []; return out as { actionable: boolean; reason: string; intake_type?: string; intake_summary?: string; tasks: { title: string; details: string; kind: string; signal: string; existing_task_id: string | null; due_raw: string | null; due_iso: string | null; due_has_time: boolean; priority: 1 | 2 | 3 | 4; quote: string; confidence: number }[] }; } catch { return null; }
 }
 function json(body: unknown, status = 200) { return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } }); }

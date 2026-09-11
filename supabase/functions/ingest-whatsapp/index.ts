@@ -186,8 +186,17 @@ async function run(db: SupabaseClient, uid: string, body: Body) {
     if (row) created++;
   }
 
-  await db.from("messages").update({ processed_at: new Date().toISOString(), extraction: out })
-    .eq("user_id", uid).eq("channel", "whatsapp").in("external_id", candidates.map(m => m.id));
+  // Store each message's own classification. Noise is marked seen immediately:
+  // it is kept for auditing what was filtered, but never shown.
+  const byId = new Map((out.intake ?? []).map(i => [i.message_id, i]));
+  for (const m of candidates) {
+    const cls = byId.get(m.id);
+    await db.from("messages").update({
+      processed_at: new Date().toISOString(), extraction: out,
+      intake_type: cls?.type ?? null, intake_summary: cls?.summary ?? null,
+      intake_seen_at: !cls || cls.type === "noise" || cls.type === "task" ? new Date().toISOString() : null,
+    }).eq("user_id", uid).eq("channel", "whatsapp").eq("external_id", m.id);
+  }
 
   return finish({
     fetched: incoming.length, candidates: candidates.length, created_tasks: created,
@@ -243,7 +252,19 @@ Rules:
 - Priority: 1 urgent, 2 high (deadline within 2 days, or from a client/boss), 3 medium, 4 low.
 - If a message chases something in OPEN TASKS ("kya hua", "any update", "reminder"), use signal "follow_up" with that existing_task_id instead of creating a new task. If it says that task is finished, signal "done". Otherwise "new".
 - message_id: the id of the message the task came from. title: short imperative, <= 12 words, English. quote: the exact sentence asking for it (<= 200 chars).
-- confidence 0-1. Be strict: if you are not sure it is my task, score below 0.35.`;
+- confidence 0-1. Be strict: if you are not sure it is my task, score below 0.35.
+
+ALSO classify EVERY message in the conversation, including ones that are not tasks, into exactly one type:
+- "task" — I must do something. (Only this type creates a task.)
+- "commitment" — someone promised something to me.
+- "request" — someone expects something from me but it is not yet a concrete action.
+- "decision" — a choice is needed from me or from the group.
+- "event" — something happened or is scheduled that changes the picture.
+- "risk" — a possible negative outcome worth knowing about.
+- "opportunity" — a possible upside worth knowing about.
+- "information" — useful to know, no action. Numbers, status, context, answers.
+- "noise" — greetings, acknowledgements, jokes, anything not worth keeping.
+For each, give a one-line summary in plain English from MY point of view, under 15 words. Be honest: most group chatter is "noise", and marking noise as information is how an inbox becomes unreadable.`;
 
   const transcript = msgs.map(m => {
     const flags = [
@@ -279,8 +300,20 @@ Rules:
           required: ["message_id", "title", "details", "kind", "signal", "existing_task_id", "due_raw", "due_iso", "due_has_time", "priority", "quote", "confidence"],
         },
       },
+      intake: {
+        type: "array",
+        items: {
+          type: "object", additionalProperties: false,
+          properties: {
+            message_id: { type: "string" },
+            type: { type: "string", enum: ["task", "commitment", "request", "decision", "event", "risk", "opportunity", "information", "noise"] },
+            summary: { type: "string" },
+          },
+          required: ["message_id", "type", "summary"],
+        },
+      },
     },
-    required: ["actionable", "reason", "tasks"],
+    required: ["actionable", "reason", "tasks", "intake"],
   };
 
   const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -306,6 +339,7 @@ Rules:
     return out as {
       actionable: boolean; reason: string;
       tasks: { message_id: string; title: string; details: string; kind: string; signal: string; existing_task_id: string | null; due_raw: string | null; due_iso: string | null; due_has_time: boolean; priority: 1 | 2 | 3 | 4; quote: string; confidence: number }[];
+      intake?: { message_id: string; type: string; summary: string }[];
     };
   } catch { return null; }
 }

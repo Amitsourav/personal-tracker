@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
-import { Sun, CalendarDays, Inbox, Layers, Users, CheckCircle2, Clock, CalendarClock, MessageCircleQuestion, Settings, Plus, Search, Sparkles, FolderKanban, LayoutList, Moon, SunMedium, ChevronDown, ChevronRight, MoreHorizontal, Bookmark } from "lucide-react";
+import { Sun, CalendarDays, Inbox, Layers, Users, CheckCircle2, Clock, CalendarClock, MessageCircleQuestion, Radar, Settings, Plus, Search, Sparkles, FolderKanban, LayoutList, Moon, SunMedium, ChevronDown, ChevronRight, MoreHorizontal, Bookmark } from "lucide-react";
 import { useStore, isOpen } from "@/lib/store";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -71,6 +71,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
         <Item href="/inbox" icon={Inbox} label="Inbox" count={inboxCount} onClose={onClose} />
         <Item href="/review" icon={Sparkles} label="Review" count={reviewCount} accent onClose={onClose} />
         <Item href="/all" icon={Layers} label="All tasks" count={open.length} onClose={onClose} />
+        <Item href="/signals" icon={Radar} label="Signals" onClose={onClose} />
         <Item href="/followups" icon={Clock} label="Follow-ups" count={waitingCount} accent={waitingCount > 0} onClose={onClose} />
         <Item href="/people" icon={Users} label="People" onClose={onClose} />
         <Item href="/logbook" icon={CheckCircle2} label="Logbook" onClose={onClose} />
