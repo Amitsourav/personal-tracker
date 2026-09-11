@@ -1,5 +1,66 @@
 # Handoff — where things stand (11 Sept 2026)
 
+## TEST CHECKLIST — everything built but not yet confirmed working
+Kept at the top because it is the thing most likely to be assumed rather than
+checked. Nothing below has been exercised by Amit on real data. Lint, build and
+deploy all pass, which today proved repeatedly is not the same as working.
+
+### Blocking — nothing real has ever flowed through these
+- [ ] **WhatsApp: a real message.** Zero real groups (`@g.us`) have ever reached
+      `ingest-whatsapp`; all traffic so far is synthetic (our tests + the bot's
+      probe, whose group id was `connectivity-check@probe`). In an enabled group
+      post two messages and check Review within ~60s:
+      1. `Task` on its own line, then `test message for tracker, ignore` → should
+         appear as a task
+      2. One of Amit's own, e.g. `haan main kal tak ye bhej dunga` → should appear
+         as a **promise**
+      If nothing arrives, check in this order: `tracker_outbox` counts in the bot
+      DB → bot flush logs → `whatsapp_groups` in Tracker → `function_edge_logs`.
+- [ ] **Ask the bot team:** `client.js` skips `message.fromMe`. If the bot's
+      WhatsApp session is linked to Amit's OWN number, his messages are `fromMe`
+      and promise capture silently never fires. Expected to be a separate number,
+      never confirmed.
+
+### Phase 4 — built, unexercised
+- [x] Follow-ups page + Chase draft — confirmed by Amit
+- [x] Accept & reply (`draft_ack`) — confirmed in `ai_usage` 11 Sept 09:29
+- [ ] **Promise tracker on WhatsApp** — both sides deployed, synthetic only
+- [ ] Promise tracker on email — correct but found 1 sent email in 60 days;
+      expect it to stay silent
+
+### Phase 5 — only the day planner has been run
+- [x] AI day plan — Amit ran it and approved the output
+- [ ] **Accept plan → does the block actually appear in Google Calendar?**
+      (`/api/calendar/block`, never exercised)
+- [ ] Unschedule / complete a task → does the calendar entry disappear?
+- [ ] Meeting prep — needs a real meeting with attendees already in `people`;
+      current calendar has 2 events, neither with attendees
+- [ ] Free-gap suggestions — only renders today, 15-120 min before the next
+      meeting, with unscheduled tasks available
+- [ ] Re-plan diff — run Plan, accept, then Re-plan and check the moved/new/
+      dropped labels
+- [ ] Morning brief + deadline risk — brief hides itself when there is nothing
+      to say, so an empty screen may be correct rather than broken
+
+### Known gap, not a bug to find
+- [ ] **Calendar edits do not flow back.** Dragging a time-block to a new time
+      inside Google Calendar does NOT update `tasks.scheduled_at`; Tracker will
+      quietly show the old time. `sync-calendar` never writes to `tasks`. The
+      plan called for `scheduled_at/duration_min ↔ events`, so this is a gap
+      rather than a decision. ~30 min: when a synced event has a `task_id` and
+      its start has changed, update the task to match.
+
+### Deferred by choice
+- Morning brief is in-app only; email/push/WhatsApp delivery not built.
+- Voice notes (Phase 3) — never decided.
+- WhatsApp settings screen (Phase 3) — `whatsapp_groups.enabled` is enforced but
+  has no UI; SQL only.
+
+### Test data to clear before trusting any numbers
+People `Priya` / `Vikas` / `Neha` (+9190000000xx); groups `120363TEST*` and
+`connectivity-check@probe`; messages with ids like `test-*`, `tk-*`, `v2-*`,
+`pr-*`, `probe-*`; and the tasks they produced.
+
 ## Done
 - **Phase 0 Setup**: Supabase project, Vercel project (GitHub-linked), magic-link login, Supabase auth URLs set to the Vercel domain.
 - **Phase 1 Tracker** (live, Amit signed in): tasks, projects, tags, people, subtasks, repeats; list / table / board / calendar; Today, Upcoming, Inbox, All, Logbook, saved views; ⌘K; quick add with natural language (`kal tak`, `p1`, `#project`, `@tag`, `from:Name`, `~30m`, `every monday`); detail panel with activity; keyboard shortcuts; PWA; dark/light; JSON/CSV export in Settings.
