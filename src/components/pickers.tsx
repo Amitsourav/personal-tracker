@@ -80,10 +80,14 @@ export function PlannedPicker({ task, compact }: { task: Task; compact?: boolean
   );
 }
 
-export function PriorityPicker({ task, label }: { task: Task; label?: boolean }) {
+export function PriorityPicker({ task, label, subtle }: { task: Task; label?: boolean; subtle?: boolean }) {
   const updateTask = useStore(s => s.updateTask);
+  // In a list, a flag on every row is twenty identical marks down the edge —
+  // noise, not hierarchy. Only urgent and high carry one at rest; the rest
+  // appear on hover, where they are still one click away.
+  const quiet = subtle && task.priority > 2;
   return (
-    <Popover trigger={<button className={clsx("pill hover:bg-hover", label ? "text-ink-2" : "px-1")} title="Priority"><PriorityFlag p={task.priority} />{label && PRIORITY_LABEL[task.priority]}</button>}>
+    <Popover trigger={<button className={clsx("pill hover:bg-hover", label ? "text-ink-2" : "px-1", quiet && "opacity-0 group-hover:opacity-100 focus-visible:opacity-100")} title="Priority"><PriorityFlag p={task.priority} />{label && PRIORITY_LABEL[task.priority]}</button>}>
       {(close) => <>{[1, 2, 3, 4].map(p => <button key={p} className="menu-item" data-active={task.priority === p} onClick={() => { updateTask(task.id, { priority: p as 1|2|3|4 }); close(); }}><PriorityFlag p={p} /> {PRIORITY_LABEL[p]}<span className="ml-auto"><kbd>{p}</kbd></span></button>)}</>}
     </Popover>
   );

@@ -20,7 +20,7 @@ export function TaskRow({ task, showProject = true, sortable = false, depth = 0 
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}
       data-task={task.id}
-      className={clsx("group flex items-center gap-2 h-8 pr-2 rounded-md cursor-default select-none border border-transparent", selected ? "bg-selected" : focused ? "bg-hover border-line" : "row-hover")}
+      className={clsx("group flex items-center gap-2.5 h-9 pr-2 rounded-lg cursor-default select-none border border-transparent", selected ? "bg-selected" : focused ? "bg-hover border-line" : "row-hover")}
       onClick={() => { select(task.id); setFocus(task.id); }} onMouseEnter={() => setFocus(task.id)}>
       <div style={{ width: 8 + depth * 18 }} className="flex-none" />
       {depth > 0 && <CornerDownRight size={12} className="text-ink-3 -ml-1" />}
@@ -37,11 +37,11 @@ export function TaskRow({ task, showProject = true, sortable = false, depth = 0 
         {task.waiting_on_person_id && <span className="pill bg-p2-soft text-p2">waiting</span>}
         {showProject && <ProjectPicker task={task} compact />}
         <DuePicker task={task} compact />
-        <PriorityPicker task={task} />
+        <PriorityPicker task={task} subtle />
       </div>
       <div className="sm:hidden flex items-center gap-1 flex-none" onClick={e => e.stopPropagation()}>
         <DuePicker task={task} compact />
-        <PriorityPicker task={task} />
+        <PriorityPicker task={task} subtle />
       </div>
     </div>
   );

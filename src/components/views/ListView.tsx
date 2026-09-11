@@ -30,7 +30,7 @@ export function ListView({ groups, showProject, sortable, onQuickAdd }: { groups
 
   if (!groups.some(g => g.tasks.length)) return <Empty />;
   return (
-    <div className="grid gap-4 pb-24">
+    <div className="grid gap-5 pb-24 max-w-[980px]">
       {groups.map(g => g.tasks.length > 0 || onQuickAdd ? (
         <section key={g.key}>
           <header className="flex items-center gap-2 h-7 px-1 mb-0.5">
