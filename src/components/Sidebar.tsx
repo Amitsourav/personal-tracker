@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
-import { Sun, CalendarDays, Inbox, Layers, Users, CheckCircle2, Clock, Settings, Plus, Search, Sparkles, FolderKanban, LayoutList, Moon, SunMedium, ChevronDown, ChevronRight, MoreHorizontal, Bookmark } from "lucide-react";
+import { Sun, CalendarDays, Inbox, Layers, Users, CheckCircle2, Clock, CalendarClock, Settings, Plus, Search, Sparkles, FolderKanban, LayoutList, Moon, SunMedium, ChevronDown, ChevronRight, MoreHorizontal, Bookmark } from "lucide-react";
 import { useStore, isOpen } from "@/lib/store";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -67,6 +67,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
       <nav className="px-2 mt-3 grid gap-0.5 overflow-y-auto flex-1 pb-3">
         <Item href="/today" icon={Sun} label="Today" count={todayCount} accent={overdue > 0} onClose={onClose} />
         <Item href="/upcoming" icon={CalendarDays} label="Upcoming" onClose={onClose} />
+        <Item href="/plan" icon={CalendarClock} label="Plan" onClose={onClose} />
         <Item href="/inbox" icon={Inbox} label="Inbox" count={inboxCount} onClose={onClose} />
         <Item href="/review" icon={Sparkles} label="Review" count={reviewCount} accent onClose={onClose} />
         <Item href="/all" icon={Layers} label="All tasks" count={open.length} onClose={onClose} />
