@@ -3,8 +3,9 @@ import { useCallback, useEffect, useState } from "react";
 import { useStore, isOpen } from "@/lib/store";
 import { createClient } from "@/lib/supabase/client";
 import { PriorityFlag } from "@/components/ui";
-import { Sparkles, RefreshCw, Check, X, CalendarDays, Clock } from "lucide-react";
+import { Sparkles, RefreshCw, Check, X, CalendarDays, Clock, ChevronRight, ChevronDown } from "lucide-react";
 import { Brief } from "@/components/Brief";
+import { MeetingPrep } from "@/components/MeetingPrep";
 
 type Block = {
   task_id: string; title: string; priority: number; due_at: string | null;
@@ -13,7 +14,7 @@ type Block = {
 type Event = {
   id: string; title: string; start_at: string; end_at: string;
   all_day: boolean; self_response: string | null; html_link: string | null;
-  task_id: string | null;
+  task_id: string | null; attendees: { email?: string; name?: string; response?: string }[]; organizer: string | null;
 };
 
 const todayISO = () => {
@@ -39,13 +40,14 @@ export default function Plan() {
   const [error, setError] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [syncing, setSyncing] = useState(false);
+  const [openPrep, setOpenPrep] = useState<string | null>(null);
   const sb = createClient();
 
   const loadEvents = useCallback(async () => {
     const start = new Date(`${date}T00:00:00`);
     const end = new Date(start.getTime() + 86_400_000);
     const { data } = await sb.from("calendar_events")
-      .select("id,title,start_at,end_at,all_day,self_response,html_link,task_id")
+      .select("id,title,start_at,end_at,all_day,self_response,html_link,task_id,attendees,organizer")
       .neq("status", "cancelled")
       .lt("start_at", end.toISOString()).gt("end_at", start.toISOString())
       .order("start_at");
@@ -138,10 +140,24 @@ export default function Plan() {
           {busy.length ? (
             <div className="border border-line rounded-lg bg-panel overflow-hidden">
               {busy.map(e => (
-                <div key={e.id} className="flex items-center gap-3 px-3 h-9 border-b border-line-2 last:border-0 text-[13px]">
-                  <span className="tnum text-ink-2 w-[95px] shrink-0">{hhmm(e.start_at)}–{hhmm(e.end_at)}</span>
-                  <span className="truncate">{e.title}</span>
-                  {e.html_link && <a className="ml-auto text-[11px] text-accent" href={e.html_link} target="_blank" rel="noreferrer">open</a>}
+                <div key={e.id} className="border-b border-line-2 last:border-0">
+                  <button className="w-full flex items-center gap-3 px-3 h-9 text-[13px] row-hover text-left"
+                    onClick={() => setOpenPrep(openPrep === e.id ? null : e.id)}>
+                    {openPrep === e.id ? <ChevronDown size={13} className="text-ink-3 shrink-0" /> : <ChevronRight size={13} className="text-ink-3 shrink-0" />}
+                    <span className="tnum text-ink-2 w-[95px] shrink-0">{hhmm(e.start_at)}–{hhmm(e.end_at)}</span>
+                    <span className="truncate">{e.title}</span>
+                    {(e.attendees?.length ?? 0) > 0 && (
+                      <span className="ml-auto text-[11px] text-ink-3 shrink-0">{e.attendees.length} invited</span>
+                    )}
+                  </button>
+                  {openPrep === e.id && <>
+                    <MeetingPrep attendees={e.attendees ?? []} organizer={e.organizer} />
+                    {e.html_link && (
+                      <div className="px-3 py-1.5 bg-panel-2 border-t border-line-2">
+                        <a className="text-[11.5px] text-accent" href={e.html_link} target="_blank" rel="noreferrer">Open in Google Calendar</a>
+                      </div>
+                    )}
+                  </>}
                 </div>
               ))}
             </div>
