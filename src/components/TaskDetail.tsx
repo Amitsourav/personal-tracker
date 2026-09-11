@@ -6,6 +6,7 @@ import type { TaskEvent, Task } from "@/lib/types";
 import { DuePicker, PriorityPicker, StatusPicker, ProjectPicker, PersonPicker, TagPicker } from "./pickers";
 import { Popover } from "./ui";
 import { X, Trash2, Plus, Repeat, Timer, Link2, Sparkles, ChevronRight, ExternalLink } from "lucide-react";
+import { TaskContext } from "./TaskContext";
 import { formatDistanceToNow, format } from "date-fns";
 import clsx from "clsx";
 
@@ -74,6 +75,8 @@ export function TaskDetail() {
               {task.source_quote && <blockquote className="text-ink-2 border-l-2 border-line pl-2 italic">“{task.source_quote}”</blockquote>}
             </div>
           )}
+
+          <TaskContext task={task} />
 
           <div>
             <div className="text-[11px] font-semibold text-ink-3 uppercase tracking-wide mb-1 flex items-center">Subtasks <span className="ml-1 tnum font-normal">{subtasks.filter(s => s.status === "done").length}/{subtasks.length}</span></div>
