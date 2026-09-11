@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
-import { Sun, CalendarDays, Inbox, Layers, Users, CheckCircle2, Settings, Plus, Search, Sparkles, FolderKanban, LayoutList, Moon, SunMedium, ChevronDown, ChevronRight, MoreHorizontal, Bookmark } from "lucide-react";
+import { Sun, CalendarDays, Inbox, Layers, Users, CheckCircle2, Clock, Settings, Plus, Search, Sparkles, FolderKanban, LayoutList, Moon, SunMedium, ChevronDown, ChevronRight, MoreHorizontal, Bookmark } from "lucide-react";
 import { useStore, isOpen } from "@/lib/store";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -47,6 +47,10 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
   const overdue = open.filter(t => isOverdue(t)).length;
   const inboxCount = open.filter(t => t.status === "inbox").length;
   const reviewCount = tasks.filter(t => t.review_state === "suggested").length;
+  // Only the stale ones badge the nav: a count that includes yesterday's asks
+  // would sit permanently non-zero and stop meaning anything.
+  const waitingCount = open.filter(t => t.waiting_on_person_id && !t.parent_id
+    && now.getTime() - new Date(t.created_at).getTime() >= 3 * 86_400_000).length;
   const projCount = (id: string) => open.filter(t => t.project_id === id).length;
 
   return (
@@ -66,6 +70,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
         <Item href="/inbox" icon={Inbox} label="Inbox" count={inboxCount} onClose={onClose} />
         <Item href="/review" icon={Sparkles} label="Review" count={reviewCount} accent onClose={onClose} />
         <Item href="/all" icon={Layers} label="All tasks" count={open.length} onClose={onClose} />
+        <Item href="/followups" icon={Clock} label="Follow-ups" count={waitingCount} accent={waitingCount > 0} onClose={onClose} />
         <Item href="/people" icon={Users} label="People" onClose={onClose} />
         <Item href="/logbook" icon={CheckCircle2} label="Logbook" onClose={onClose} />
 
