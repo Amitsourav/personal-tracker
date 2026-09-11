@@ -1,12 +1,16 @@
 "use client";
+import { useState } from "react";
 import { useStore } from "@/lib/store";
 import { Empty } from "@/components/views/ListView";
 import { PriorityFlag, Avatar } from "@/components/ui";
 import { fmtDue } from "@/lib/dates";
-import { Check, X, Sparkles, ExternalLink, Pencil } from "lucide-react";
+import { Check, X, Sparkles, ExternalLink, Pencil, MessageSquare } from "lucide-react";
+import { DraftModal } from "@/components/DraftModal";
+import type { Task } from "@/lib/types";
 
 export default function Review() {
   const { tasks, people, projects, updateTask, updatePerson, select, toast } = useStore();
+  const [replyTo, setReplyTo] = useState<Task | null>(null);
   const suggested = tasks.filter(t => t.review_state === "suggested").sort((a, b) => b.created_at.localeCompare(a.created_at));
   return (
     <div className="h-full flex flex-col">
@@ -39,6 +43,12 @@ export default function Review() {
                   </div>
                   <div className="flex items-center gap-1.5 pl-6">
                     <button className="btn primary sm" onClick={() => { updateTask(t.id, { review_state: "accepted" }); toast("Accepted"); }}><Check size={13} /> Accept</button>
+                    {person && (t.ai_meta as { kind?: string }).kind !== "commitment" && (
+                      <button className="btn sm" title={`Accept and draft a reply to ${person.name}`}
+                        onClick={() => { updateTask(t.id, { review_state: "accepted" }); setReplyTo(t); toast("Accepted"); }}>
+                        <MessageSquare size={13} /> Accept &amp; reply
+                      </button>
+                    )}
                     <button className="btn sm" onClick={() => select(t.id)}><Pencil size={13} /> Edit</button>
                     <button className="btn ghost sm text-danger" onClick={() => { updateTask(t.id, { review_state: "rejected" }); toast("Rejected"); }}><X size={13} /> Reject</button>
                     {person && person.trust_level === "review" && <span className="ml-auto flex items-center gap-1 text-[11px] text-ink-3">{person.name}:<button className="btn ghost sm" onClick={() => { updatePerson(person.id, { trust_level: "auto_accept" }); toast(`Tasks from ${person.name} will be added automatically`); }}>always accept</button><button className="btn ghost sm" onClick={() => { updatePerson(person.id, { trust_level: "ignore" }); updateTask(t.id, { review_state: "rejected" }); toast(`Ignoring ${person.name}`); }}>ignore</button></span>}
@@ -49,6 +59,7 @@ export default function Review() {
           </div>
         )}
       </div>
+      <DraftModal task={replyTo} kind="ack" onClose={() => setReplyTo(null)} />
     </div>
   );
 }

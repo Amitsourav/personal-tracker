@@ -1,10 +1,11 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useStore, isOpen } from "@/lib/store";
-import { Avatar, Modal } from "@/components/ui";
+import { Avatar } from "@/components/ui";
 import { Empty } from "@/components/views/ListView";
-import { Copy, RefreshCw, Sparkles, Check } from "lucide-react";
+import { Sparkles, Check } from "lucide-react";
+import { DraftModal } from "@/components/DraftModal";
 import type { Task } from "@/lib/types";
 
 /**
@@ -55,7 +56,7 @@ export default function FollowUps() {
         </>}
       </div>
 
-      <DraftModal task={drafting} onClose={() => setDrafting(null)} />
+      <DraftModal task={drafting} kind="chaser" onClose={() => setDrafting(null)} />
     </div>
   );
 }
@@ -103,62 +104,5 @@ function Section({ title, hint, rows, personOf, onDraft, onDone, accent }: {
         })}
       </div>
     </section>
-  );
-}
-
-/** Generates the message, shows it for approval, and copies it. Never sends. */
-function DraftModal({ task, onClose }: { task: Task | null; onClose: () => void }) {
-  const { toast } = useStore();
-  const [text, setText] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [loadedFor, setLoadedFor] = useState<string | null>(null);
-
-  const generate = useCallback(async (t: Task) => {
-    setLoading(true); setError(null);
-    const r = await fetch("/api/ai/draft", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ taskId: t.id, kind: "chaser" }),
-    });
-    const j = await r.json().catch(() => ({}));
-    setLoading(false);
-    if (!r.ok) { setError(j.error ?? `Failed (${r.status})`); return; }
-    setText(j.text); setLoadedFor(t.id);
-  }, []);
-
-  // Draft on open, once per task. Rewriting is explicit, so a failed draft does
-  // not retry on every render and quietly spend the budget.
-  useEffect(() => {
-    if (task && loadedFor !== task.id) { setText(""); setError(null); generate(task); }
-  }, [task, loadedFor, generate]);
-
-  return (
-    <Modal open={!!task} onClose={() => { setText(""); setLoadedFor(null); setError(null); onClose(); }}>
-      <div className="p-4 grid gap-3">
-        <div>
-          <h2 className="font-semibold text-[14px]">Chaser message</h2>
-          <p className="text-[11.5px] text-ink-3 mt-0.5">
-            Edit anything you like, then copy it. Tracker never sends messages for you.
-          </p>
-        </div>
-        {task && <div className="text-[12px] text-ink-2 bg-panel-2 rounded p-2 truncate">{task.title}</div>}
-        {loading ? <div className="text-[12.5px] text-ink-3 flex items-center gap-2 py-6 justify-center">
-          <RefreshCw size={13} className="animate-spin" /> Writing…
-        </div> : error ? <div className="text-[12.5px] text-danger">{error}</div> : (
-          <textarea className="bg-panel-2 rounded p-2 outline-none text-[13px] text-ink min-h-[120px] resize-y leading-relaxed"
-            value={text} onChange={e => setText(e.target.value)} />
-        )}
-        <div className="flex gap-2">
-          <button className="btn primary sm" disabled={!text} onClick={async () => {
-            await navigator.clipboard.writeText(text);
-            toast("Copied — paste it into WhatsApp or Gmail");
-          }}><Copy size={12} /> Copy</button>
-          <button className="btn sm" disabled={!task || loading} onClick={() => task && generate(task)}>
-            <RefreshCw size={12} /> Rewrite
-          </button>
-          <button className="btn sm ml-auto" onClick={() => { setText(""); setLoadedFor(null); setError(null); onClose(); }}>Close</button>
-        </div>
-      </div>
-    </Modal>
   );
 }
