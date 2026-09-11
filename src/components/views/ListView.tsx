@@ -30,7 +30,7 @@ export function ListView({ groups, showProject, sortable, onQuickAdd }: { groups
 
   if (!groups.some(g => g.tasks.length)) return <Empty />;
   return (
-    <div className="grid gap-5 pb-24 max-w-[980px]">
+    <div className="grid gap-6 pb-24 max-w-[980px]">
       {groups.map(g => g.tasks.length > 0 || onQuickAdd ? (
         <section key={g.key}>
           <header className="flex items-center gap-2 h-7 px-1 mb-0.5">
@@ -67,6 +67,6 @@ export function ListView({ groups, showProject, sortable, onQuickAdd }: { groups
   );
 }
 
-export function Empty({ text = "Nothing here", sub = "Press N to add a task." }: { text?: string; sub?: string }) {
+export function Empty({ text = "Nothing here yet", sub = "Press N to add a task, or let Gmail and WhatsApp bring them in." }: { text?: string; sub?: string }) {
   return <div className={clsx("grid place-items-center py-24 text-center")}><div><div className="text-[14px] font-medium text-ink-2">{text}</div><div className="text-[12px] text-ink-3 mt-1">{sub}</div></div></div>;
 }

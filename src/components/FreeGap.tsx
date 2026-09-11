@@ -57,7 +57,7 @@ export function FreeGap({ events, isToday }: { events: Event[]; isToday: boolean
   if (!fits.length) return null;
 
   return (
-    <section className="rounded-lg border border-line bg-panel px-3 py-2.5 grid gap-2">
+    <section className="rounded-xl bg-panel-2 px-4 py-3 grid gap-2">
       <div className="text-[12px] font-semibold text-ink-2 flex items-center gap-1.5">
         <Zap size={13} className="text-accent" />
         {fmt(gap)} free {next && next < dayEnd ? "before your next meeting" : "until the end of the day"}

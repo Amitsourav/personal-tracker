@@ -63,7 +63,7 @@ export function Brief({ events, date }: { events: Event[]; date: string }) {
         </div>
       )}
 
-      <div className="grid gap-1.5 rounded-lg border border-line bg-panel px-3 py-2.5">
+      <div className="grid gap-1.5 rounded-xl bg-panel-2 px-4 py-3">
         <div className="text-[12px] font-semibold text-ink-2">
           {isToday ? greeting(now) : "That day"}
         </div>

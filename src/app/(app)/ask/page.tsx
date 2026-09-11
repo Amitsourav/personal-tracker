@@ -4,6 +4,7 @@ import { useStore } from "@/lib/store";
 import { PriorityFlag } from "@/components/ui";
 import { fmtDue } from "@/lib/dates";
 import { Sparkles, RefreshCw, CornerDownLeft } from "lucide-react";
+import { PageHeader, PageBody } from "@/components/PageHeader";
 
 type Cited = { id: string; title: string; status: string; priority: number; due_at: string | null; review_state: string };
 type Answer = { question: string; answer: string; tasks: Cited[]; truncated: boolean; total: number };
@@ -46,15 +47,10 @@ export default function Ask() {
 
   return (
     <div className="h-full flex flex-col">
-      <header className="flex items-center gap-2 px-4 h-12 border-b border-line">
-        <h1 className="font-semibold text-[15px]">Ask</h1>
-        <span className="text-[11px] text-ink-3 hidden sm:inline">
-          · Questions about your own tasks, answered from your own data
-        </span>
-      </header>
+      <PageHeader title="Ask" hint="Questions about your own tasks, answered from your own data" />
 
-      <div className="flex-1 overflow-auto p-4">
-        <div className="max-w-[720px] grid gap-4">
+      <PageBody>
+        <div className="grid gap-4 max-w-[720px]">
           <form onSubmit={e => { e.preventDefault(); ask(q); }} className="flex gap-2">
             <input
               className="field flex-1" autoFocus
@@ -79,7 +75,7 @@ export default function Ask() {
           {error && <div className="text-[12.5px] text-danger">{error}</div>}
 
           {history.map((h, i) => (
-            <div key={i} className="grid gap-2 border border-line rounded-lg bg-panel p-3 fade-in">
+            <div key={i} className="grid gap-2.5 bg-panel-2 rounded-xl p-4 fade-in">
               <div className="text-[12px] text-ink-3">{h.question}</div>
               <div className="text-[13.5px] leading-relaxed flex gap-2">
                 <Sparkles size={14} className="text-accent mt-1 flex-none" />
@@ -106,7 +102,7 @@ export default function Ask() {
             </div>
           ))}
         </div>
-      </div>
+      </PageBody>
     </div>
   );
 }

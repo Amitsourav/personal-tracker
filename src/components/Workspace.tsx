@@ -105,12 +105,12 @@ export function Workspace(p: WorkspaceProps) {
 
   return (
     <div className="h-full flex flex-col min-w-0">
-      <header className="flex items-center gap-2 px-4 h-12 border-b border-line flex-none">
+      <header className="flex items-center gap-2.5 px-5 h-14 border-b border-line flex-none">
         <div className="min-w-0">
-          <h1 className="font-semibold text-[15px] leading-tight truncate">{p.title}</h1>
-          {p.subtitle && <div className="text-[11px] text-ink-3 truncate">{p.subtitle}</div>}
+          <h1 className="font-semibold text-[15px] tracking-[-0.02em] leading-tight truncate">{p.title}</h1>
+          {p.subtitle && <div className="text-[11.5px] text-ink-3 truncate">{p.subtitle}</div>}
         </div>
-        <span className="text-[11px] text-ink-3 tnum">{visible.length}</span>
+        <span className="text-[12px] text-ink-3 tnum flex-none">{visible.length}</span>
         {p.headerExtra}
         <div className="ml-auto flex items-center gap-1">
           <div className="hidden md:flex items-center gap-1 border border-line rounded-md h-7 px-1.5 w-[180px] focus-within:border-accent"><Search size={13} className="text-ink-3" /><input id={`search-${p.scopeKey}`} className="bg-transparent outline-none flex-1 text-[12px] min-w-0" placeholder="Filter tasks…" value={search} onChange={e => setSearch(e.target.value)} /></div>

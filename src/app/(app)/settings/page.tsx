@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { Suspense } from "react";
 import { IntegrationsSettings } from "@/components/IntegrationsSettings";
+import { PageHeader, PageBody } from "@/components/PageHeader";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -24,8 +25,8 @@ export default function Settings() {
   }
   return (
     <div className="h-full flex flex-col">
-      <header className="flex items-center px-4 h-12 border-b border-line"><h1 className="font-semibold text-[15px]">Settings</h1></header>
-      <div className="flex-1 overflow-auto p-4 grid gap-4 max-w-[640px] content-start">
+      <PageHeader title="Settings" />
+      <PageBody className="grid gap-5 content-start max-w-[720px]">
         <Section title="You">
           <Row label="Name"><input className="field" defaultValue={profile.display_name ?? ""} onBlur={e => updateProfile({ display_name: e.target.value })} /></Row>
           <Row label="Timezone"><input className="field" defaultValue={profile.timezone} onBlur={e => updateProfile({ timezone: e.target.value })} /></Row>
@@ -45,9 +46,9 @@ export default function Settings() {
           </div>
         </Section>
         <div><button className="btn sm" onClick={async () => { await createClient().auth.signOut(); toast("Signed out"); router.push("/login"); }}>Sign out</button></div>
-      </div>
+      </PageBody>
     </div>
   );
 }
-function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) { return <section className="bg-panel border border-line rounded-lg p-4 grid gap-3"><div><h2 className="font-semibold text-[13px]">{title}</h2>{hint && <p className="text-[11.5px] text-ink-3 mt-0.5">{hint}</p>}</div>{children}</section>; }
+function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) { return <section className="bg-panel-2 rounded-xl p-5 grid gap-3.5"><div><h2 className="font-semibold text-[13px]">{title}</h2>{hint && <p className="text-[11.5px] text-ink-3 mt-0.5">{hint}</p>}</div>{children}</section>; }
 function Row({ label, children }: { label: string; children: React.ReactNode }) { return <div className="grid grid-cols-[130px_1fr] items-center gap-2 text-[12.5px]"><span className="text-ink-2">{label}</span>{children}</div>; }

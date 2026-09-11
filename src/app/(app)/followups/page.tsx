@@ -6,6 +6,7 @@ import { Avatar } from "@/components/ui";
 import { Empty } from "@/components/views/ListView";
 import { Sparkles, Check } from "lucide-react";
 import { DraftModal } from "@/components/DraftModal";
+import { PageHeader, PageBody } from "@/components/PageHeader";
 import type { Task } from "@/lib/types";
 
 /**
@@ -33,19 +34,18 @@ export default function FollowUps() {
 
   return (
     <div className="h-full flex flex-col">
-      <header className="flex items-center gap-2 px-4 h-12 border-b border-line">
-        <h1 className="font-semibold text-[15px]">Follow-ups</h1>
-        <span className="text-[11px] text-ink-3 tnum">{waiting.length}</span>
-        {stale.length > 0 && <span className="text-[11px] text-p1 font-semibold tnum">{stale.length} need chasing</span>}
-        <label className="ml-auto flex items-center gap-1.5 text-[11.5px] text-ink-3">
-          Chase after
-          <input type="number" min={0} max={90} className="field h-7 w-[56px] text-[12px] tnum" value={threshold}
-            onChange={e => setThreshold(Math.max(0, Number(e.target.value) || 0))} />
-          days
-        </label>
-      </header>
+      <PageHeader title="Follow-ups" count={waiting.length}
+        hint={stale.length ? `${stale.length} need chasing` : undefined}
+        actions={
+          <label className="flex items-center gap-1.5 text-[12px] text-ink-3">
+            Chase after
+            <input type="number" min={0} max={90} className="field h-7 w-[58px] text-[12px] tnum" value={threshold}
+              onChange={e => setThreshold(Math.max(0, Number(e.target.value) || 0))} />
+            days
+          </label>
+        } />
 
-      <div className="flex-1 overflow-auto p-4 grid gap-5">
+      <PageBody className="grid gap-6">
         {!waiting.length ? (
           <Empty text="Nothing you're waiting on. Tasks appear here when someone owes you something — set 'waiting on' in a task, or accept a suggestion where someone promised you something." />
         ) : <>
@@ -54,7 +54,7 @@ export default function FollowUps() {
           <Section title="Recent" hint="still fresh" rows={recent} personOf={personOf}
             onDraft={setDrafting} onDone={id => updateTask(id, { status: "done" })} toast={toast} />
         </>}
-      </div>
+      </PageBody>
 
       <DraftModal task={drafting} kind="chaser" onClose={() => setDrafting(null)} />
     </div>
@@ -74,7 +74,7 @@ function Section({ title, hint, rows, personOf, onDraft, onDone, accent }: {
         {title} <span className="text-ink-3 font-normal tnum">{rows.length}</span>
         <span className="text-ink-3 font-normal text-[11px]">· {hint}</span>
       </h2>
-      <div className="border border-line rounded-lg bg-panel overflow-hidden">
+      <div className="bg-panel-2 rounded-xl overflow-hidden">
         {rows.map(({ task, days }) => {
           const p = personOf(task.waiting_on_person_id);
           return (

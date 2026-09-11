@@ -7,6 +7,7 @@ import { fmtDue } from "@/lib/dates";
 import { Check, X, Sparkles, ExternalLink, Pencil, MessageSquare } from "lucide-react";
 import { DraftModal } from "@/components/DraftModal";
 import type { Task } from "@/lib/types";
+import { PageHeader, PageBody } from "@/components/PageHeader";
 
 export default function Review() {
   const { tasks, people, projects, updateTask, updatePerson, select, toast } = useStore();
@@ -14,17 +15,20 @@ export default function Review() {
   const suggested = tasks.filter(t => t.review_state === "suggested").sort((a, b) => b.created_at.localeCompare(a.created_at));
   return (
     <div className="h-full flex flex-col">
-      <header className="flex items-center gap-2 px-4 h-12 border-b border-line"><h1 className="font-semibold text-[15px]">Review</h1><span className="text-[11px] text-ink-3 tnum">{suggested.length}</span><span className="text-[11px] text-ink-3 hidden sm:inline">· Tasks the AI found in your messages. Nothing is added until you accept it.</span>
-        {suggested.length > 1 && <button className="btn sm ml-auto" onClick={() => { suggested.forEach(t => updateTask(t.id, { review_state: "accepted" })); toast(`Accepted ${suggested.length} tasks`); }}><Check size={13} /> Accept all</button>}</header>
-      <div className="flex-1 overflow-auto p-4">
+      <PageHeader title="Review" count={suggested.length}
+        hint="Tasks the AI found in your messages. Nothing is added until you accept it."
+        actions={suggested.length > 1 ? (
+          <button className="btn sm" onClick={() => { suggested.forEach(t => updateTask(t.id, { review_state: "accepted" })); toast(`Accepted ${suggested.length} tasks`); }}><Check size={13} /> Accept all</button>
+        ) : undefined} />
+      <PageBody>
         {!suggested.length ? (
           <Empty text="Nothing to review" sub="Once Gmail and WhatsApp are connected (Phase 2–3), suggested tasks will appear here for you to accept or reject." />
         ) : (
-          <div className="grid gap-2 max-w-[760px]">
+          <div className="grid gap-2.5">
             {suggested.map(t => {
               const person = people.find(p => p.id === t.person_id); const project = projects.find(p => p.id === t.project_id);
               return (
-                <div key={t.id} className="bg-panel border border-line rounded-lg p-3 grid gap-2 fade-in">
+                <div key={t.id} className="bg-panel-2 rounded-xl p-4 grid gap-2.5 fade-in">
                   <div className="flex items-start gap-2">
                     <Sparkles size={14} className="text-accent mt-0.5 flex-none" />
                     <div className="flex-1 min-w-0">
@@ -58,7 +62,7 @@ export default function Review() {
             })}
           </div>
         )}
-      </div>
+      </PageBody>
       <DraftModal task={replyTo} kind="ack" onClose={() => setReplyTo(null)} />
     </div>
   );

@@ -7,6 +7,7 @@ import { Sparkles, RefreshCw, Check, X, CalendarDays, Clock, ChevronRight, Chevr
 import { Brief } from "@/components/Brief";
 import { MeetingPrep } from "@/components/MeetingPrep";
 import { FreeGap } from "@/components/FreeGap";
+import { PageHeader, PageBody } from "@/components/PageHeader";
 
 type Block = {
   task_id: string; title: string; priority: number; due_at: string | null;
@@ -132,17 +133,19 @@ export default function Plan() {
 
   return (
     <div className="h-full flex flex-col">
-      <header className="flex items-center gap-2 px-4 h-12 border-b border-line">
-        <h1 className="font-semibold text-[15px]">Plan</h1>
-        <input type="date" className="field h-7 w-auto text-[12px]" value={date} onChange={e => setDate(e.target.value)} />
-        <button className="btn sm" onClick={() => setDate(todayISO())}>Today</button>
-        <button className="btn primary sm ml-auto" onClick={plan} disabled={loading}>
-          {loading ? <RefreshCw size={13} className="animate-spin" /> : <Sparkles size={13} />}
-          {blocks ? "Re-plan" : "Plan my day"}
-        </button>
-      </header>
+      <PageHeader title="Plan"
+        left={<>
+          <input type="date" className="field h-7 w-auto text-[12px]" value={date} onChange={e => setDate(e.target.value)} />
+          <button className="btn sm" onClick={() => setDate(todayISO())}>Today</button>
+        </>}
+        actions={
+          <button className="btn primary sm" onClick={plan} disabled={loading}>
+            {loading ? <RefreshCw size={13} className="animate-spin" /> : <Sparkles size={13} />}
+            {blocks ? "Re-plan" : "Plan my day"}
+          </button>
+        } />
 
-      <div className="flex-1 overflow-auto p-4 grid gap-5 max-w-[820px]">
+      <PageBody className="grid gap-6">
         <Brief events={events} date={date} />
         <FreeGap events={events} isToday={date === todayISO()} />
 
@@ -157,7 +160,7 @@ export default function Plan() {
             <CalendarDays size={13} /> Meetings <span className="text-ink-3 font-normal tnum">{busy.length}</span>
           </h2>
           {busy.length ? (
-            <div className="border border-line rounded-lg bg-panel overflow-hidden">
+            <div className="bg-panel-2 rounded-xl overflow-hidden">
               {busy.map(e => (
                 <div key={e.id} className="border-b border-line-2 last:border-0">
                   <button className="w-full flex items-center gap-3 px-3 h-9 text-[13px] row-hover text-left"
@@ -194,7 +197,7 @@ export default function Plan() {
             {!live.length ? (
               <div className="text-ink-3 text-[12.5px]">Nothing proposed.</div>
             ) : <>
-              <div className="border border-line rounded-lg bg-panel overflow-hidden">
+              <div className="bg-panel-2 rounded-xl overflow-hidden">
                 {live.map(b => (
                   <div key={b.task_id} className="grid grid-cols-[95px_1fr_auto] gap-3 items-center px-3 py-2 border-b border-line-2 last:border-0">
                     <span className="tnum text-ink-2 text-[13px]">
@@ -243,7 +246,7 @@ export default function Plan() {
             <Clock size={13} /> Time-blocked <span className="text-ink-3 font-normal tnum">{scheduled.length}</span>
           </h2>
           {scheduled.length ? (
-            <div className="border border-line rounded-lg bg-panel overflow-hidden">
+            <div className="bg-panel-2 rounded-xl overflow-hidden">
               {scheduled.map(t => (
                 <div key={t.id} className="grid grid-cols-[95px_1fr_auto] gap-3 items-center px-3 py-2 border-b border-line-2 last:border-0 row-hover">
                   <span className="tnum text-ink-2 text-[13px]">
@@ -257,7 +260,7 @@ export default function Plan() {
             </div>
           ) : <div className="text-ink-3 text-[12.5px]">Nothing time-blocked yet. Press <b>Plan my day</b>.</div>}
         </section>
-      </div>
+      </PageBody>
     </div>
   );
 }
