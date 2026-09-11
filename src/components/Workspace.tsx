@@ -27,6 +27,8 @@ export interface WorkspaceProps {
   showProject?: boolean;
   allowSaveView?: boolean;
   headerExtra?: React.ReactNode;
+  /** Rendered above the list — used by Today for "since you last looked". */
+  banner?: React.ReactNode;
 }
 
 const LAYOUTS: { key: Layout; icon: React.ComponentType<{ size?: number }>; label: string }[] = [
@@ -141,7 +143,8 @@ export function Workspace(p: WorkspaceProps) {
           <button className="btn primary sm md:hidden" onClick={() => useStore.getState().setQuickAddOpen(true)}><Plus size={13} /></button>
         </div>
       </header>
-      <div className="flex-1 overflow-auto px-3 md:px-4 py-3">
+      <div className="flex-1 overflow-auto px-5 py-5">
+        {p.banner}
         {layout === "list" && <ListView groups={groups} showProject={p.showProject !== false} sortable={sort.length === 0} onQuickAdd={quickAdd} />}
         {layout === "table" && <TableView tasks={visible} sort={sort} setSort={setSort} />}
         {layout === "board" && <BoardView columns={boardCols} onMove={boardMove} onAdd={(k, t) => quickAdd(k, t)} />}
