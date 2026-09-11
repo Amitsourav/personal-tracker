@@ -171,6 +171,15 @@ function redact(s: string) {
     .replace(/\b\d{10,19}\b/g, "[number]")
     .replace(/\b[A-Z]{4}0[A-Z0-9]{6}\b/g, "[ifsc]");
 }
+/**
+ * The team's agreed convention: a message beginning "Task" (own line, or
+ * "Task:" / "Task -") is a task for Amit even with nobody tagged. Confirmed by
+ * the bot team on 11 Sep 2026 as their most common format. \bTask\b does not
+ * match "Tasks", so "Tasks are pending" is not caught.
+ */
+function isExplicitTask(text: string | null) {
+  return /^\s*task\b[:\-\u2013]?\s*/i.test(text ?? "");
+}
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 }
@@ -190,6 +199,7 @@ async function extract(
 Rules:
 - This is a work group. Most messages are chatter between other people — extract NOTHING from those. A message is only a task for me if it asks ME to do something, or someone promises something TO me.
 - Messages marked [TAGGED ME] or [REPLY TO ME] are aimed at me — weigh them heavily. A message aimed at someone else is not my task even if it describes work.
+- [EXPLICIT TASK] means the sender used the team's agreed "Task" format, which by convention always means a task for ME even though nobody tagged me. Always extract it, with confidence 0.8 or higher. Ignore the literal word "Task" when writing the title — the instruction is the line(s) after it. If one such message lists several things, output one task per line.
 - kind "request" = I must do it. kind "commitment" = the sender promised it to me and I am waiting on them.
 - Ignore: greetings, acknowledgements ("ok", "done", "thik hai", "ji"), status chatter, forwarded jokes, and anything already completed.
 - Messages are English, Hindi or Hinglish (Romanised Hindi). Interpret naturally: "bhej dena" = send it, "kar dena" = do it, "dekh lena" = check it, "pending hai" = still open.
@@ -200,7 +210,11 @@ Rules:
 - confidence 0-1. Be strict: if you are not sure it is my task, score below 0.35.`;
 
   const transcript = msgs.map(m => {
-    const flags = [m.mentionedMe ? "[TAGGED ME]" : "", m.isReplyToMe ? "[REPLY TO ME]" : ""].filter(Boolean).join(" ");
+    const flags = [
+      m.mentionedMe ? "[TAGGED ME]" : "",
+      m.isReplyToMe ? "[REPLY TO ME]" : "",
+      isExplicitTask(m.text) ? "[EXPLICIT TASK]" : "",
+    ].filter(Boolean).join(" ");
     const when = new Date(m.timestamp * 1000).toLocaleString("en-IN", { timeZone: tz, weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
     const quoted = m.quotedText ? `\n   (replying to: “${redact(m.quotedText).slice(0, 160)}”)` : "";
     return `[${m.id}] ${when} — ${m.senderName || m.senderPhone || "unknown"} ${flags}\n   ${redact(m.text ?? "").slice(0, 800)}${quoted}`;
