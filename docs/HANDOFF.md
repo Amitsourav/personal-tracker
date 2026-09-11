@@ -118,6 +118,50 @@ Two real bugs were found and fixed getting there:
 1. **Google app is in Testing mode — the Gmail connection expires ~18 Sept 2026.** Amit is on the Test users list; publishing is blocked until the Branding page is completed, which needs a privacy policy + terms URL. Next step: add `/privacy` and `/terms` pages to the app, fill Branding, then Audience → Publish app.
 2. Google sign-in provider (Supabase → Auth → Providers → Google) never enabled — magic link works, so this is cosmetic.
 
+## The blueprint — PARKED BY AMIT (11 Sept 2026), resume later
+`~/Downloads/AI_Personal_Operating_System_COMPLETE_Blueprint.pdf` — 21 pages Amit
+wrote himself. Read in full on 11 Sept. It is not a task manager: it specifies an
+**AI Chief of Staff** built on a Personal Reality Model, where tasks are one input
+among many. Its own exclusion list contains "not a system that turns every message
+into a task", which is close to what Tracker currently is.
+
+Core loop: OBSERVE → UNDERSTAND → CONNECT → ESTABLISH REALITY → PREDICT → DECIDE →
+PLAN → PREPARE → ACT → VERIFY → LEARN. Three moats: Personal Reality Model,
+Personal Decision Model, Trusted Execution.
+
+**Where Tracker sits:** roughly M0-M3 of its own 11 milestones, plus a thin M7
+(Ask). Not built: the Reality Model (provenance, temporal validity, epistemic
+status, contradictions), Policy Engine, Approval Center, action receipts,
+verification V0-V3, memory/learning, risk and opportunity engines, GitHub,
+agent workforce. Those are what the document itself calls the moats.
+
+**Assessed as worth building, in order (nothing else from the doc for now):**
+1. ~~"Since you last looked"~~ — **built 11 Sept**, `src/components/WhatChanged.tsx`.
+2. **Verified commitments** (~2 days) — its best idea. "Completion is not success":
+   Detected → Confirmed → Planned → In Progress → Fulfilled → **Verified**. The
+   promise tracker plus a check that the thing actually landed.
+3. **"Why does it believe this?"** (~half day) — source_quote, confidence, ai_meta
+   and reasoning are already stored on every AI task and barely surfaced.
+4. **Risk engine** (~1 day) — extend deadline risk to stale commitments, people
+   waited on too long, deadline conflicts. Mostly arithmetic, so free to run.
+5. **Universal Inbox as a classifier** (~2 days) — eight types (Information, Task,
+   Commitment, Request, Decision, Event, Risk, Opportunity) where only one becomes
+   a task. Resolves the contradiction above; a prompt/schema change to a working
+   pipeline plus a view.
+
+**Deliberately deferred:** Policy Engine, Approval Center, receipts and rollback
+only matter once the system sends things, and it does not. Agent workforce and
+autonomy levels 4-5 are years out. The full Reality Model pays off only after
+months of data - build it when the simple version starts hurting.
+
+**Two questions unanswered, and they change any plan:**
+- Evolve Tracker into this, or start the Personal OS separately? Tracker's schema
+  is task-centric; the blueprint is reality-centric.
+- The doc freezes WhatsApp at Tier 4 and GitHub at Tier 1. Reality is the
+  opposite: WhatsApp is where Amit's work actually arrives, and nothing he has
+  given us is engineering work. The document should be updated rather than
+  quietly ignored.
+
 ## Tuning backlog — DEFERRED BY AMIT (11 Sept 2026)
 Amit's call: do not tune phase by phase. Build all the phases first, then do one tuning pass over everything at the end. Collect items here as they are noticed; do not stop to fix them mid-build unless they block a phase.
 
