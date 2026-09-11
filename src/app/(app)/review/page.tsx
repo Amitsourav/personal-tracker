@@ -6,6 +6,7 @@ import { PriorityFlag, Avatar } from "@/components/ui";
 import { fmtDue } from "@/lib/dates";
 import { Check, X, Sparkles, ExternalLink, Pencil, MessageSquare } from "lucide-react";
 import { DraftModal } from "@/components/DraftModal";
+import { Why } from "@/components/Why";
 import type { Task } from "@/lib/types";
 import { PageHeader, PageBody } from "@/components/PageHeader";
 
@@ -41,8 +42,7 @@ export default function Review() {
                         <span className="text-ink-3">via {t.source_kind}{t.confidence != null && ` · ${Math.round(t.confidence * 100)}%`}</span>
                         {t.source_link && <a className="text-accent flex items-center gap-0.5" href={t.source_link} target="_blank" rel="noreferrer">source <ExternalLink size={10} /></a>}
                       </div>
-                      {t.source_quote && <blockquote className="mt-1.5 text-[12px] text-ink-2 border-l-2 border-line pl-2 italic">“{t.source_quote}”</blockquote>}
-                      {(t.ai_meta as { reason?: string; due_raw?: string; subject?: string; kind?: string }).subject && <div className="mt-1 text-[11.5px] text-ink-3">Email: {(t.ai_meta as { subject?: string }).subject}{(t.ai_meta as { due_raw?: string }).due_raw && <> · deadline read from “{(t.ai_meta as { due_raw?: string }).due_raw}”</>}{(t.ai_meta as { kind?: string }).kind === "commitment" && <> · <b>they</b> promised this to you</>}</div>}
+                      <div className="mt-2"><Why task={t} open /></div>
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 pl-6">

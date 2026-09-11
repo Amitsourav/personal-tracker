@@ -5,9 +5,10 @@ import { createClient } from "@/lib/supabase/client";
 import type { TaskEvent, Task } from "@/lib/types";
 import { DuePicker, PlannedPicker, PriorityPicker, StatusPicker, ProjectPicker, PersonPicker, TagPicker } from "./pickers";
 import { Popover } from "./ui";
-import { X, Trash2, Plus, Repeat, Timer, Link2, Sparkles, ChevronRight, ExternalLink } from "lucide-react";
+import { X, Trash2, Plus, Repeat, Timer, Link2, ChevronRight } from "lucide-react";
 import { TaskContext } from "./TaskContext";
 import { DoWithAI } from "./DoWithAI";
+import { Why } from "./Why";
 import { formatDistanceToNow, format } from "date-fns";
 import clsx from "clsx";
 
@@ -70,13 +71,7 @@ export function TaskDetail() {
           <textarea id="detail-desc" className="w-full bg-panel-2 rounded-lg p-2.5 outline-none text-[13px] resize-none min-h-[72px] border border-transparent focus:border-line" placeholder="Notes…" value={desc}
             onChange={e => setDesc(e.target.value)} onBlur={() => { if (desc !== (task.description ?? "")) updateTask(task.id, { description: desc || null }); }} />
 
-          {(task.source_kind !== "manual" || task.source_quote) && (
-            <div className="rounded-lg border border-line p-2.5 text-[12px]">
-              <div className="flex items-center gap-1.5 text-ink-3 mb-1"><Sparkles size={12} /> From {task.source_kind}{task.confidence != null && ` · ${Math.round(task.confidence * 100)}% confident`}
-                {task.source_link && <a className="ml-auto text-accent flex items-center gap-1" href={task.source_link} target="_blank" rel="noreferrer">Open <ExternalLink size={11} /></a>}</div>
-              {task.source_quote && <blockquote className="text-ink-2 border-l-2 border-line pl-2 italic">“{task.source_quote}”</blockquote>}
-            </div>
-          )}
+          <Why task={task} />
 
           <DoWithAI task={task} />
 
