@@ -125,7 +125,39 @@ and `connectivity-check@probe`, and messages with ids like `test-*`, `tk-*`, `v2
 - Follow-ups ("kya hua?") and "done / bhej diya" signals as in Gmail. Voice notes: helper sends the .opus file; transcribe (OpenRouter audio-capable model or Sarvam for Hinglish) then extract.
 - Task-bot number is **deferred** (no spare number).
 
-## Phase 4 — People & follow-ups
+## Phase 4 — BUILT AND DEPLOYED (11 Sept 2026); meeting prep moved to Phase 5
+
+1. **Follow-ups page** (`/followups`) — everything others owe Amit, across all
+   people, oldest first, split at a configurable staleness threshold. The People
+   page answers "what does X owe me"; this answers "who is sitting on something",
+   which is the question that actually prompts a chase. Sidebar badge counts only
+   items past the threshold. **Confirmed working by Amit.**
+2. **Chase drafts** — `/api/ai/draft` writes the nudge, adapting tone to WhatsApp
+   vs email. Copy only, never sends: that would need `gmail.compose` and a
+   re-consent, and "AI suggests, Amit approves" covers outgoing words too.
+   **Confirmed working by Amit.**
+3. **Accept & reply** on Review — same endpoint, `kind: "ack"`. Built and
+   deployed, **not yet exercised by Amit.** Hidden when the suggestion is a
+   commitment THEY made.
+4. **Promise tracker, email** (`ingest-promises`, hourly) — built and correct,
+   but **~zero value**: 1 sent email in 60 days. Amit does not send from this
+   Gmail. Left running; costs nothing when there is nothing to read.
+5. **Promise tracker, WhatsApp** — where the value actually is. `ingest-whatsapp`
+   v3 splits a batch: others' messages take the task prompt, Amit's own take an
+   inverted prompt asking what HE committed to. Bot side shipped the §12 addendum
+   (commit `938f0e1`, deployed 14:50 IST) with `fromOwner`. Verified on synthetic
+   input; **never seen a real message.**
+
+### Open
+- **No real WhatsApp traffic has ever reached Tracker** (Phase 3's open item).
+  One message in an enabled group settles both task and promise capture:
+  a `Task`-marked line, and one of Amit's own like "kal tak bhej dunga".
+- **Ask the bot team:** `client.js` skips `message.fromMe`. If the bot's session
+  is linked to Amit's OWN number, his messages are `fromMe` and promise capture
+  silently never fires. Expected to be a separate number, but unverified.
+- Meeting prep needs Calendar; it is Phase 5 work and was moved there deliberately.
+
+## Phase 4 — original scope notes
 - People pages exist (`/people`, `/people/[id]`: I owe them / they owe me, trust level). Add: promise tracker (scan **sent** mail + Amit's own WhatsApp messages for commitments → tasks with `waiting_on_person_id=null`, `person_id=null`, `ai_meta.kind='promise'`), waiting-for chaser drafts after N days (Gmail draft via `gmail.compose` scope — requires re-consent; or copy-to-clipboard), "noted, will do by …" reply drafts on accept, meeting prep view.
 
 ## Phase 5 — Smart planning
