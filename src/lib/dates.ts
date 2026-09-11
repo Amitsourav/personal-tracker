@@ -26,3 +26,12 @@ export function dueBucket(iso: string | null, now = new Date()): "overdue" | "to
   return "later";
 }
 export { startOfDay, endOfDay, addDays, startOfWeek, endOfWeek, isSameDay, format };
+
+/**
+ * The date a task shows up under in date views: its deadline if it has one,
+ * otherwise the day it is planned for. Only due_at can make something overdue —
+ * see isOverdue — because only a deadline can actually be broken.
+ */
+export function effectiveDate(t: { due_at: string | null; start_at?: string | null }) {
+  return t.due_at ?? t.start_at ?? null;
+}

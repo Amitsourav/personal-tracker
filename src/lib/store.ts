@@ -229,11 +229,17 @@ export function applyFilter(tasks: Task[], taskTags: TaskTag[], f: import("./typ
     if (f.person_id?.length && !(f.person_id.includes(t.person_id ?? "") || f.person_id.includes(t.waiting_on_person_id ?? ""))) return false;
     if (f.tag_id?.length && !taskTags.some(tt => tt.task_id === t.id && f.tag_id!.includes(tt.tag_id))) return false;
     if (f.due && f.due !== "any") {
-      const d = t.due_at ? new Date(t.due_at) : null;
-      if (f.due === "none" && d) return false;
-      if (f.due === "overdue" && !(d && d < start)) return false;
-      if (f.due === "today" && !(d && d < endToday)) return false;
-      if (f.due === "week" && !(d && d < endWeek)) return false;
+      // Date views answer "is this on my plate today", so a planned date counts
+      // as much as a deadline. They stay separate everywhere it matters: only
+      // due_at can make something overdue, because only a deadline can be
+      // broken. A planned day that slipped is just a day that went differently.
+      const due = t.due_at ? new Date(t.due_at) : null;
+      const planned = t.start_at ? new Date(t.start_at) : null;
+      const dated = due ?? planned;
+      if (f.due === "none" && dated) return false;
+      if (f.due === "overdue" && !(due && due < start)) return false;
+      if (f.due === "today" && !(dated && dated < endToday)) return false;
+      if (f.due === "week" && !(dated && dated < endWeek)) return false;
     }
     if (f.search) {
       const q = f.search.toLowerCase();
@@ -247,7 +253,8 @@ export function sortTasks(tasks: Task[], sort: import("./types").SortSpec[]): Ta
   if (!sort.length) return [...tasks].sort((a, b) => a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at));
   return [...tasks].sort((a, b) => {
     for (const s of sort) {
-      const av = a[s.field], bv = b[s.field];
+      const av = s.field === "due_at" ? (a.due_at ?? a.start_at) : a[s.field];
+      const bv = s.field === "due_at" ? (b.due_at ?? b.start_at) : b[s.field];
       if (av === bv) continue;
       if (av == null) return 1; if (bv == null) return -1;
       const c = av < bv ? -1 : 1;

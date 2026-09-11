@@ -10,7 +10,7 @@ import { BoardView } from "./views/BoardView";
 import { CalendarView } from "./views/CalendarView";
 import { Popover } from "./ui";
 import { List, Table2, Kanban, CalendarDays, SlidersHorizontal, ArrowUpDown, Rows3, Search, Bookmark, Check, Eye, EyeOff, Plus } from "lucide-react";
-import { dueBucket } from "@/lib/dates";
+import { dueBucket, effectiveDate } from "@/lib/dates";
 import { parseQuickAdd } from "@/lib/quickadd";
 
 export type GroupBy = "none" | "due" | "project" | "priority" | "status" | "person";
@@ -62,7 +62,7 @@ export function Workspace(p: WorkspaceProps) {
     const m = new Map<string, Group>();
     const push = (key: string, label: string, t: Task, color?: string, hint?: string) => { if (!m.has(key)) m.set(key, { key, label, color, tasks: [], hint }); m.get(key)!.tasks.push(t); };
     for (const t of visible) {
-      if (group === "due") { const b = dueBucket(t.due_at); push(b, { overdue: "Overdue", today: "Today", tomorrow: "Tomorrow", week: "This week", later: "Later", none: "No date" }[b], t); }
+      if (group === "due") { const b = dueBucket(effectiveDate(t)); push(b, { overdue: "Overdue", today: "Today", tomorrow: "Tomorrow", week: "This week", later: "Later", none: "No date" }[b], t); }
       else if (group === "project") { const pr = projects.find(x => x.id === t.project_id); push(pr?.id ?? "none", pr?.name ?? "No project", t, pr?.color); }
       else if (group === "priority") push(String(t.priority), PRIORITY_LABEL[t.priority], t);
       else if (group === "status") push(t.status, STATUS_LABEL[t.status], t);
