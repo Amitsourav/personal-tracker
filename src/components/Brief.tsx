@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useStore, isOpen } from "@/lib/store";
 import { isOverdue } from "@/lib/dates";
-import { AlertTriangle, CalendarDays, Clock, Handshake, TriangleAlert } from "lucide-react";
+import { AlertTriangle, CalendarDays, CalendarClock, Clock, Handshake, TriangleAlert } from "lucide-react";
 import type { Task } from "@/lib/types";
 
 type Event = { id: string; title: string; start_at: string; end_at: string; all_day: boolean; self_response: string | null; task_id: string | null };
@@ -23,6 +23,8 @@ export function Brief({ events, date }: { events: Event[]; date: string }) {
   const overdue = open.filter(t => isOverdue(t, now));
   const dueToday = open.filter(t => t.due_at && !isOverdue(t, now) && sameLocalDay(t.due_at, date));
   const promises = open.filter(t => (t.ai_meta as { kind?: string })?.kind === "promise");
+  const plannedToday = open.filter(t => t.start_at && !t.due_at
+    && new Date(t.start_at) <= endOfDay(date));
   const waiting = open.filter(t => t.waiting_on_person_id
     && now.getTime() - new Date(t.created_at).getTime() >= 3 * 86_400_000);
 
@@ -40,7 +42,8 @@ export function Brief({ events, date }: { events: Event[]; date: string }) {
   const freeMin = isToday ? freeMinutesLeft(meetings, now) : null;
   const atRisk = freeMin !== null && needMin > freeMin && needMin > 0;
 
-  const nothing = !overdue.length && !dueToday.length && !promises.length && !waiting.length && !meetings.length;
+  const nothing = !overdue.length && !dueToday.length && !promises.length
+    && !waiting.length && !meetings.length && !plannedToday.length;
   if (nothing) return null;
 
   return (
@@ -69,6 +72,7 @@ export function Brief({ events, date }: { events: Event[]; date: string }) {
             extra={next ? `next ${hhmm(next.start_at)} · ${next.title}` : undefined} />
           <Stat icon={AlertTriangle} label="overdue" n={overdue.length} href="/today" danger />
           <Stat icon={Clock} label="due today" n={dueToday.length} href="/today" />
+          <Stat icon={CalendarClock} label="planned for today" n={plannedToday.length} href="/plan" />
           <Stat icon={Handshake} label="you promised" n={promises.length} href="/review" />
           <Stat icon={Clock} label="waiting on others" n={waiting.length} href="/followups" />
         </div>
@@ -99,6 +103,7 @@ function Stat({ icon: Icon, label, n, href, danger, extra }: {
 }
 
 const hhmm = (iso: string) => new Date(iso).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: false });
+const endOfDay = (date: string) => new Date(`${date}T23:59:59`);
 const localISO = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const sameLocalDay = (iso: string, date: string) => localISO(new Date(iso)) === date;
 const fmtMin = (m: number) => m >= 60 ? `${Math.floor(m / 60)}h${m % 60 ? ` ${m % 60}m` : ""}` : `${m}m`;

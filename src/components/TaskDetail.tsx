@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useStore } from "@/lib/store";
 import { createClient } from "@/lib/supabase/client";
 import type { TaskEvent, Task } from "@/lib/types";
-import { DuePicker, PriorityPicker, StatusPicker, ProjectPicker, PersonPicker, TagPicker } from "./pickers";
+import { DuePicker, PlannedPicker, PriorityPicker, StatusPicker, ProjectPicker, PersonPicker, TagPicker } from "./pickers";
 import { Popover } from "./ui";
 import { X, Trash2, Plus, Repeat, Timer, Link2, Sparkles, ChevronRight, ExternalLink } from "lucide-react";
 import { TaskContext } from "./TaskContext";
@@ -53,6 +53,7 @@ export function TaskDetail() {
             <span className="text-ink-3">Status</span><div><StatusPicker task={task} /></div>
             <span className="text-ink-3">Priority</span><div><PriorityPicker task={task} label /></div>
             <span className="text-ink-3">Due</span><div><DuePicker task={task} /></div>
+            <span className="text-ink-3">Plan to do</span><div><PlannedPicker task={task} /></div>
             <span className="text-ink-3">Project</span><div><ProjectPicker task={task} /></div>
             <span className="text-ink-3">Tags</span><div><TagPicker task={task} /></div>
             <span className="text-ink-3">From</span><div><PersonPicker task={task} field="person_id" /></div>

@@ -3,7 +3,7 @@ import { useState } from "react";
 import * as chrono from "chrono-node";
 import { addDays, format, nextMonday, startOfDay } from "date-fns";
 import clsx from "clsx";
-import { Check, CalendarDays, X } from "lucide-react";
+import { Check, CalendarDays, CalendarClock, X } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { Popover, PriorityFlag, Avatar, Dot } from "./ui";
 import { fmtDue } from "@/lib/dates";
@@ -35,6 +35,45 @@ export function DuePicker({ task, compact }: { task: Task; compact?: boolean }) 
             <input type="time" className="field h-7 text-[12px] w-[96px]" value={task.due_at && task.due_has_time ? format(new Date(task.due_at), "HH:mm") : ""} onChange={e => { if (e.target.value) { const base = task.due_at ? new Date(task.due_at) : now; const [h, m] = e.target.value.split(":").map(Number); base.setHours(h, m, 0, 0); set(base, true); } }} />
           </div>
           {task.due_at && <button className="menu-item text-danger" onClick={() => { set(null); close(); }}><X size={12} /> Remove date</button>}
+        </div>
+      )}
+    </Popover>
+  );
+}
+
+/**
+ * "Plan to do" — when Amit intends to get to this, as distinct from due_at,
+ * which means somebody is waiting. Most of his backlog has no real deadline, and
+ * dating it all as "due" would put the whole list overdue on the same day and
+ * make the overdue count meaningless.
+ */
+export function PlannedPicker({ task, compact }: { task: Task; compact?: boolean }) {
+  const updateTask = useStore(s => s.updateTask);
+  const [text, setText] = useState("");
+  const set = (d: Date | null) => updateTask(task.id, { start_at: d ? d.toISOString() : null });
+  const now = new Date();
+  const at9 = (d: Date) => { const x = new Date(d); x.setHours(9, 0, 0, 0); return x; };
+  const presets: [string, () => Date][] = [
+    ["Today", () => at9(now)], ["Tomorrow", () => at9(addDays(now, 1))],
+    ["Next Monday", () => at9(nextMonday(now))], ["In a week", () => at9(addDays(now, 7))],
+  ];
+  // Deliberately never styled as overdue: a planned date that has slipped is not
+  // a broken promise, it is a day that went differently.
+  const trigger = task.start_at
+    ? <button className="pill bg-panel-2 text-ink-2 border border-line"><CalendarClock size={11} /> Plan {format(new Date(task.start_at), "d MMM")}</button>
+    : <button className={clsx("pill text-ink-3 hover:bg-hover", compact && "opacity-0 group-hover:opacity-100")}><CalendarClock size={11} /> {compact ? "" : "Plan"}</button>;
+  return (
+    <Popover trigger={trigger}>
+      {(close) => (
+        <div className="w-[240px]">
+          <form onSubmit={e => { e.preventDefault(); const r = chrono.parse(text, now, { forwardDate: true })[0]; if (r) { set(at9(r.start.date())); close(); } }}>
+            <input id={`plan-${task.id}`} autoFocus className="field mb-1" placeholder="e.g. monday, in 3 days, 25 sep" value={text} onChange={e => setText(e.target.value)} />
+          </form>
+          {presets.map(([l, f]) => <button key={l} className="menu-item" onClick={() => { set(f()); close(); }}>{l}<span className="ml-auto text-ink-3 text-[11px]">{format(f(), "EEE d")}</span></button>)}
+          <div className="flex gap-1 px-1 py-1 border-t border-line mt-1">
+            <input type="date" className="field h-7 text-[12px]" value={task.start_at ? format(new Date(task.start_at), "yyyy-MM-dd") : ""} onChange={e => { if (e.target.value) set(new Date(e.target.value + "T09:00:00")); }} />
+          </div>
+          {task.start_at && <button className="menu-item text-danger" onClick={() => { set(null); close(); }}><X size={12} /> Remove</button>}
         </div>
       )}
     </Popover>

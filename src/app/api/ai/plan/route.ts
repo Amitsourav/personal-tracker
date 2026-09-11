@@ -38,7 +38,7 @@ export async function POST(request: Request) {
       .lt("start_at", dayEnd.toISOString()).gt("end_at", dayStart.toISOString())
       .order("start_at"),
     supabase.from("tasks")
-      .select("id, title, priority, due_at, duration_min, status, scheduled_at, description, ai_meta")
+      .select("id, title, priority, due_at, start_at, duration_min, status, scheduled_at, description, ai_meta")
       .eq("review_state", "accepted").is("deleted_at", null)
       .not("status", "in", "(done,cancelled)")
       .order("priority"),
@@ -58,14 +58,16 @@ export async function POST(request: Request) {
     : "no deadline";
 
   const taskLines = open.map(t =>
-    `${t.id} | ${t.title} | p${t.priority} | due ${fmtDue(t.due_at)}${t.duration_min ? ` | est ${t.duration_min}m` : ""}${(t.ai_meta as { kind?: string })?.kind === "promise" ? " | I PROMISED THIS" : ""}`
+    `${t.id} | ${t.title} | p${t.priority} | due ${fmtDue(t.due_at)} | planned ${fmtDue(t.start_at)}${t.duration_min ? ` | est ${t.duration_min}m` : ""}${(t.ai_meta as { kind?: string })?.kind === "promise" ? " | I PROMISED THIS" : ""}`
   ).join("\n");
 
   const system = `You plan one working day for ${profile?.display_name ?? "the user"}. Reply ONLY with JSON matching the schema.
 Rules:
 - Working hours are ${profile?.day_start ?? "09:00"} to ${profile?.day_end ?? "21:00"} in ${tz}. Never schedule outside them, and never on top of a MEETING listed below.
 - Fill at most 70% of the free time. A day packed wall to wall is a day that breaks on the first interruption, and leaves nothing for the work that arrives during it.
-- Order by what actually matters: anything overdue first, then due today, then promises the user made to other people, then priority 1-2, then the rest. A task with no deadline should not displace one with a deadline today.
+- Two kinds of date, and they do NOT mean the same thing. "due" means somebody is waiting for it — missing it lets a person down. "planned" is the user's own note about when to get to it — missing it costs nothing. Never treat a passed planned date as urgent.
+- Order by what actually matters: overdue first, then due today, then promises the user made to other people, then anything planned for today or earlier, then priority 1-2, then the rest. A task with no deadline should not displace one with a deadline today.
+- Most of this backlog has no deadline at all. When deciding between undated tasks, prefer the ones planned for today or already passed, then the higher priority, and keep the day varied rather than stacking five near-identical tasks together.
 - Blocks are 25 to 90 minutes. Split anything that would need longer into named parts. Leave at least 10 minutes between blocks, and do not schedule over the lunch hour (13:00-14:00) unless the day is otherwise impossible.
 - Do not schedule every open task. Propose only what genuinely fits in 70% of the free time, and leave the rest for another day.
 - reason: one short clause on why this task today, in plain language, for a human deciding whether to accept. Never restate the title.
@@ -78,7 +80,7 @@ MEETINGS ALREADY BOOKED:
 ${busy.length ? busy.join("\n") : "(none)"}
 ${allDay.length ? `\nALL-DAY CONTEXT: ${allDay.join(", ")}` : ""}
 
-OPEN TASKS (id | title | priority | deadline | estimate):
+OPEN TASKS (id | title | priority | deadline | planned | estimate):
 ${taskLines}`;
 
   const schema = {
