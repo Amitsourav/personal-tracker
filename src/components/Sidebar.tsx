@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
-import { Sun, CalendarDays, Inbox, Layers, Users, CheckCircle2, Clock, CalendarClock, Settings, Plus, Search, Sparkles, FolderKanban, LayoutList, Moon, SunMedium, ChevronDown, ChevronRight, MoreHorizontal, Bookmark } from "lucide-react";
+import { Sun, CalendarDays, Inbox, Layers, Users, CheckCircle2, Clock, CalendarClock, MessageCircleQuestion, Settings, Plus, Search, Sparkles, FolderKanban, LayoutList, Moon, SunMedium, ChevronDown, ChevronRight, MoreHorizontal, Bookmark } from "lucide-react";
 import { useStore, isOpen } from "@/lib/store";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -74,6 +74,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
         <Item href="/followups" icon={Clock} label="Follow-ups" count={waitingCount} accent={waitingCount > 0} onClose={onClose} />
         <Item href="/people" icon={Users} label="People" onClose={onClose} />
         <Item href="/logbook" icon={CheckCircle2} label="Logbook" onClose={onClose} />
+        <Item href="/ask" icon={MessageCircleQuestion} label="Ask" onClose={onClose} />
 
         {views.length > 0 && <div className="mt-3 px-2 text-[11px] font-semibold text-ink-3 uppercase tracking-wide flex items-center h-6">Views</div>}
         {views.map(v => (
