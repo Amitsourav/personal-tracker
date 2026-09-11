@@ -7,6 +7,7 @@ import { DuePicker, PriorityPicker, StatusPicker, ProjectPicker, PersonPicker, T
 import { Popover } from "./ui";
 import { X, Trash2, Plus, Repeat, Timer, Link2, Sparkles, ChevronRight, ExternalLink } from "lucide-react";
 import { TaskContext } from "./TaskContext";
+import { DoWithAI } from "./DoWithAI";
 import { formatDistanceToNow, format } from "date-fns";
 import clsx from "clsx";
 
@@ -75,6 +76,8 @@ export function TaskDetail() {
               {task.source_quote && <blockquote className="text-ink-2 border-l-2 border-line pl-2 italic">“{task.source_quote}”</blockquote>}
             </div>
           )}
+
+          <DoWithAI task={task} />
 
           <TaskContext task={task} />
 
