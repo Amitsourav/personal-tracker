@@ -86,11 +86,14 @@ Keep it brief: confirm, state the timing, nothing else.`;
   }
 
   const usage = j.usage ?? {};
-  await supabase.from("ai_usage").insert({
+  const { error: usageErr } = await supabase.from("ai_usage").insert({
     user_id: user.id, purpose: `draft_${kind}`, model: secrets.model_plan,
     input_tokens: usage.prompt_tokens ?? 0, output_tokens: usage.completion_tokens ?? 0,
     cost_usd: usage.cost ?? 0,
   });
+  // Never swallow this: unlogged spend makes monthly_cap_usd meaningless, and a
+  // silently dropped insert is exactly how that went unnoticed the first time.
+  if (usageErr) console.error("ai_usage insert failed", JSON.stringify(usageErr));
 
   const text = (j.choices?.[0]?.message?.content ?? "").trim().replace(/^["“]|["”]$/g, "");
   if (!text) return NextResponse.json({ error: "AI returned an empty draft" }, { status: 502 });
