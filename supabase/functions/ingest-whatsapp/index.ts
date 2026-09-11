@@ -21,6 +21,7 @@ type Incoming = {
   timestamp: number;            // unix seconds
   mentionedMe?: boolean;        // bot resolved an @mention to the owner's number
   isReplyToMe?: boolean;        // reply to a message the owner sent
+  fromOwner?: boolean;          // Amit's OWN message: a promise he made, not a task
   quotedText?: string | null;
 };
 type Body = { group: { id: string; name?: string | null }; messages: Incoming[] };
@@ -104,14 +105,49 @@ async function run(db: SupabaseClient, uid: string, body: Body) {
   const { data: openRows } = await db.from("tasks").select("id,title,person_id,due_at,status")
     .eq("user_id", uid).is("deleted_at", null).not("status", "in", "(done,cancelled)").eq("review_state", "accepted");
 
-  const out = await extract(db, uid, sec, profile, groupName, candidates, (openRows ?? []) as OpenTask[]);
-  if (!out) return finish({ fetched: incoming.length, candidates: candidates.length, error: "AI returned nothing usable" });
+  // Amit's own messages are commitments he made, not work he was given. They go
+  // through a different prompt and land as promises.
+  const mine = candidates.filter(m => m.fromOwner);
+  const theirs = candidates.filter(m => !m.fromOwner);
 
   let created = 0;
   const errors: string[] = [];
+
+  if (mine.length) {
+    const pout = await extractPromises(db, uid, sec, profile, groupName, mine, (openRows ?? []) as OpenTask[]);
+    for (const p of pout?.promises ?? []) {
+      // Stricter than task capture: putting a promise in Amit's mouth that he
+      // did not make is worse than missing one.
+      if (p.confidence < 0.5) continue;
+      const src = mine.find(m => m.id === p.message_id) ?? mine[mine.length - 1];
+      const { data: row, error } = await db.from("tasks").insert({
+        user_id: uid, title: p.title.slice(0, 200), description: p.details || null,
+        status: "inbox", priority: p.priority, due_at: p.due_iso || null, due_has_time: !!p.due_has_time,
+        // A promise made to a group cannot be attributed to one person.
+        person_id: null, waiting_on_person_id: null,
+        source_kind: "whatsapp", source_ref: src.id, source_link: null,
+        source_quote: (p.quote ?? src.text ?? "").slice(0, 300), confidence: p.confidence,
+        review_state: "suggested",
+        ai_meta: { kind: "promise", reason: pout?.reason, due_raw: p.due_raw, model: sec.model_extract, subject: groupName, channel: "whatsapp", group: groupName },
+      }).select("id").single();
+      if (error) { console.error("promise insert failed", JSON.stringify(error)); errors.push(`${error.code ?? ""} ${error.message ?? ""}`.trim()); }
+      if (row) created++;
+    }
+  }
+
+  if (!theirs.length) {
+    await db.from("messages").update({ processed_at: new Date().toISOString() })
+      .eq("user_id", uid).eq("channel", "whatsapp").in("external_id", candidates.map(m => m.id));
+    return finish({ fetched: incoming.length, candidates: candidates.length, created_tasks: created,
+      error: errors.length ? `${errors.length} insert(s) failed: ${errors[0]}`.slice(0, 500) : null });
+  }
+
+  const out = await extract(db, uid, sec, profile, groupName, theirs, (openRows ?? []) as OpenTask[]);
+  if (!out) return finish({ fetched: incoming.length, candidates: candidates.length, created_tasks: created, error: "AI returned nothing usable" });
+
   for (const t of out.tasks ?? []) {
     if (t.confidence < 0.35) continue;
-    const src = candidates.find(m => m.id === t.message_id) ?? candidates[candidates.length - 1];
+    const src = theirs.find(m => m.id === t.message_id) ?? theirs[theirs.length - 1];
 
     // Follow-up or "done" about something already open: a note, never a duplicate.
     if (t.signal !== "new" && t.existing_task_id && (openRows ?? []).some((x: OpenTask) => x.id === t.existing_task_id)) {
@@ -270,6 +306,91 @@ Rules:
     return out as {
       actionable: boolean; reason: string;
       tasks: { message_id: string; title: string; details: string; kind: string; signal: string; existing_task_id: string | null; due_raw: string | null; due_iso: string | null; due_has_time: boolean; priority: 1 | 2 | 3 | 4; quote: string; confidence: number }[];
+    };
+  } catch { return null; }
+}
+
+/**
+ * Amit's own messages in a group: what did he commit to?
+ *
+ * Separate from extract() because the question is inverted. Reusing the task
+ * prompt with "now find MY promises" bolted on produced both and attributed
+ * them badly.
+ */
+async function extractPromises(
+  db: SupabaseClient, uid: string,
+  sec: { openrouter_key: string | null; model_extract: string },
+  profile: { timezone: string; eod_time: string; work_days: number[]; display_name: string | null } | null,
+  groupName: string, msgs: Incoming[], openTasks: OpenTask[],
+) {
+  const tz = profile?.timezone ?? "Asia/Kolkata";
+  const nowLocal = new Date().toLocaleString("en-IN", { timeZone: tz, weekday: "long", year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  const workDays = (profile?.work_days ?? [1, 2, 3, 4, 5, 6]).map(d => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d]).join(", ");
+  const me = profile?.display_name ?? "the user";
+
+  const system = `These are messages ${me} ("I") sent in a WhatsApp work group. Find the commitments I made \u2014 things I said I would do that are not done yet. Reply ONLY with JSON matching the schema.
+Rules:
+- A promise is a first-person future commitment: "I'll send it", "kal bhej dunga", "main dekh leta hoon", "revert karta hoon", "will share by Friday". Someone is now waiting on me for it.
+- NOT promises: instructions I gave to SOMEONE ELSE ("Rohit ye kar dena"); things I said were already done ("bhej diya", "sent", "done"); acknowledgements ("ok", "noted", "theek hai"); opinions, questions, and small talk; vague intent with no deliverable ("dekhte hain", "let's see").
+- Hinglish: "bhej dunga" = I will send, "kar dunga" = I will do, "dekh ke batata hoon" = I will check and tell you, "laga deta hoon" = I will get on it, "bhej diya" = already sent (NOT a promise).
+- Dates resolve against each message's own sent time. Now is ${nowLocal} (${tz}). "kal" = next day, "parso" = day after, "aaj" = today, "EOD" = ${profile?.eod_time ?? "23:59"} that day, "EOW"/"end of week" = the coming Saturday (work days: ${workDays}). No date \u2192 due_iso null. ISO 8601 with the ${tz} offset. due_has_time only if a clock time was stated.
+- Priority: 1 if I said today or urgent, 2 if within 2 days, 3 otherwise, 4 for low-stakes.
+- If it matches something in ALREADY TRACKED, skip it.
+- message_id: the message it came from. title: short imperative naming what I owe, <= 12 words, English. quote: my exact promising sentence (<= 200 chars).
+- confidence 0-1. Be strict: below 0.5 unless it is unmistakably a commitment I have not yet fulfilled.`;
+
+  const transcript = msgs.map(m => {
+    const when = new Date(m.timestamp * 1000).toLocaleString("en-IN", { timeZone: tz, weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+    const quoted = m.quotedText ? `\n   (replying to: \u201c${redact(m.quotedText).slice(0, 160)}\u201d)` : "";
+    return `[${m.id}] ${when}\n   ${redact(m.text ?? "").slice(0, 800)}${quoted}`;
+  }).join("\n");
+
+  const user = `GROUP: ${groupName}\n\nALREADY TRACKED (do not repeat):\n${openTasks.length ? openTasks.map(t => `- ${t.title} (${t.due_at ?? "no date"})`).join("\n") : "(none)"}\n\nMY MESSAGES\n${transcript}`;
+
+  const schema = {
+    type: "object", additionalProperties: false,
+    properties: {
+      reason: { type: "string" },
+      promises: {
+        type: "array",
+        items: {
+          type: "object", additionalProperties: false,
+          properties: {
+            message_id: { type: "string" }, title: { type: "string" }, details: { type: "string" },
+            due_raw: { type: ["string", "null"] }, due_iso: { type: ["string", "null"] },
+            due_has_time: { type: "boolean" },
+            priority: { type: "integer", minimum: 1, maximum: 4 },
+            quote: { type: "string" }, confidence: { type: "number" },
+          },
+          required: ["message_id", "title", "details", "due_raw", "due_iso", "due_has_time", "priority", "quote", "confidence"],
+        },
+      },
+    },
+    required: ["reason", "promises"],
+  };
+
+  const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${sec.openrouter_key}`, "Content-Type": "application/json", "HTTP-Referer": "https://personal-tracker-eta-six.vercel.app", "X-Title": "Tracker" },
+    body: JSON.stringify({
+      model: sec.model_extract, temperature: 0.1,
+      messages: [{ role: "system", content: system }, { role: "user", content: user }],
+      response_format: { type: "json_schema", json_schema: { name: "promises", strict: true, schema } },
+      usage: { include: true },
+    }),
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error(`OpenRouter ${r.status}: ${j?.error?.message ?? "error"}`);
+  const usage = j.usage ?? {};
+  const { error: usageErr } = await db.from("ai_usage").insert({
+    user_id: uid, purpose: "extract_promise_whatsapp", model: sec.model_extract,
+    input_tokens: usage.prompt_tokens ?? 0, output_tokens: usage.completion_tokens ?? 0, cost_usd: usage.cost ?? 0,
+  });
+  if (usageErr) console.error("ai_usage insert failed", JSON.stringify(usageErr));
+  try {
+    return JSON.parse((j.choices?.[0]?.message?.content ?? "{}").replace(/^```(?:json)?|```$/g, "").trim()) as {
+      reason: string;
+      promises: { message_id: string; title: string; details: string; due_raw: string | null; due_iso: string | null; due_has_time: boolean; priority: 1 | 2 | 3 | 4; quote: string; confidence: number }[];
     };
   } catch { return null; }
 }

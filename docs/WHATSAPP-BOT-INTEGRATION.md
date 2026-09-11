@@ -308,7 +308,48 @@ Match the existing `node --test` style in `test/`:
 
 Rolling back is turning the toggles off. Nothing is destructive.
 
-## 12. Definition of done
+## 12. ADDENDUM (11 Sept 2026) — forward Amit's own messages too
+
+§6 currently says *do not* forward a message when the sender is Amit, with the
+note "his own messages are promises, not tasks; that is Tracker's Phase 4".
+Phase 4 has arrived, so that rule is now **inverted**.
+
+**Change:** in an enabled group, forward Amit's own messages as well, with a new
+flag:
+
+```jsonc
+{ "id": "...", "text": "kal tak bhej dunga", "senderPhone": "+917004428198",
+  "senderName": "Amit", "timestamp": 1789117000, "fromOwner": true }
+```
+
+- `fromOwner: true` **only** when `same(senderPhone, config.tracker.ownerPhone)`
+- They still pass the ordinary filters: skip acknowledgements via
+  `noise.classify`, skip commands, skip empty text
+- Do **not** require a tag or the `Task` marker — a promise is never tagged.
+  Forward Amit's messages that are longer than a few words; Tracker's AI is the
+  real filter and it is strict (confidence floor 0.5, higher than task capture's
+  0.35, because inventing a promise is worse than missing one)
+- `mentionedMe` / `isReplyToMe` are meaningless on his own messages; send false
+
+**Tracker side is already deployed** (`ingest-whatsapp` v3) and verified against
+a synthetic batch:
+
+| Message | Result |
+|---|---|
+| `haan main kal tak revised pricing sheet bhej dunga` | promise, 0.95, due 12 Sep |
+| `Rohit ye onboarding doc tum dekh lena` | ignored — an instruction to someone else |
+| `invoice bhej diya subah hi` | ignored — already done |
+| `ok noted` | ignored — acknowledgement |
+
+Promises land in Review like anything else, marked `kind: promise`, never
+auto-accepted whatever the trust level. They carry no `person_id`, since a
+promise made to a group cannot be attributed to one person.
+
+Tests to add alongside the §10 set: `fromOwner` is set for Amit's messages and
+only his; his acknowledgements are still skipped; an untagged message of his
+with no `Task` marker is still forwarded.
+
+## 13. Definition of done
 
 - A tagged message in an enabled group appears in Tracker's Review within ~60s
 - A message tagging someone else does not
