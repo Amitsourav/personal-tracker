@@ -4,6 +4,7 @@ import { useStore, isOpen } from "@/lib/store";
 import { createClient } from "@/lib/supabase/client";
 import { PriorityFlag } from "@/components/ui";
 import { Sparkles, RefreshCw, Check, X, CalendarDays, Clock } from "lucide-react";
+import { Brief } from "@/components/Brief";
 
 type Block = {
   task_id: string; title: string; priority: number; due_at: string | null;
@@ -122,6 +123,8 @@ export default function Plan() {
       </header>
 
       <div className="flex-1 overflow-auto p-4 grid gap-5 max-w-[820px]">
+        <Brief events={events} date={date} />
+
         {allDay.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {allDay.map(e => <span key={e.id} className="pill bg-accent-soft text-accent">{e.title}</span>)}
