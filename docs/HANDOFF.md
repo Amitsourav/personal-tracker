@@ -160,7 +160,43 @@ and `connectivity-check@probe`, and messages with ids like `test-*`, `tk-*`, `v2
 ## Phase 4 — original scope notes
 - People pages exist (`/people`, `/people/[id]`: I owe them / they owe me, trust level). Add: promise tracker (scan **sent** mail + Amit's own WhatsApp messages for commitments → tasks with `waiting_on_person_id=null`, `person_id=null`, `ai_meta.kind='promise'`), waiting-for chaser drafts after N days (Gmail draft via `gmail.compose` scope — requires re-consent; or copy-to-clipboard), "noted, will do by …" reply drafts on accept, meeting prep view.
 
-## Phase 5 — Smart planning
+## Phase 5 — COMPLETE (11 Sept 2026)
+
+1. **Calendar sync** (`sync-calendar`, every 15 min) — mirrors the primary
+   calendar into `calendar_events` using Google's syncToken, so each run moves
+   only changes. A 410 (expired token) is routine and falls back to a bounded
+   full window. Deletions arrive as `status:cancelled` and are kept so removals
+   propagate. Verified against the live calendar.
+2. **AI day planner** (`/api/ai/plan`, `/plan`) — proposes blocks around real
+   meetings: fills at most 70% of free time, orders overdue → due today →
+   promises → priority, 25-90 min blocks, keeps lunch clear, never schedules in
+   the past. Declined meetings are not busy time. Hallucinated task ids and
+   malformed times are dropped rather than rendered. Writes nothing until
+   accepted. **Amit ran it and approved the output.**
+3. **Blocks pushed to Google Calendar** (`/api/calendar/block`) — accepted blocks
+   become real calendar entries so they appear on his phone and block the slot.
+   One entry point handles create/move/remove; `scheduled_at` is the source of
+   truth. Unscheduling or completing removes the entry. A calendar failure never
+   undoes a plan already accepted in Tracker.
+4. **Morning brief + deadline risk** (`src/components/Brief.tsx`) — computed
+   locally, not by a model: exact, instant, free. Hides entirely when there is
+   nothing to say. Risk compares work due within 48h against working time left
+   after meetings.
+5. **Meeting prep** (`src/components/MeetingPrep.tsx`) — expand a meeting to see
+   attendees matched to people, what is open in both directions, last contact
+   and the last thread. Unmatched attendees are listed rather than dropped.
+6. **Free gaps + re-plan diff** — what fits before the next meeting (15-120 min
+   only), and what a re-plan moved, added or dropped.
+
+### Notes
+- Everything above is built and deployed but running on thin data: 2 calendar
+  events (no attendees), 1 real Gmail task, 0 real WhatsApp messages. The
+  machinery is proven; the judgement calls (70% fill, block lengths, gap bounds,
+  staleness thresholds) are guesses until real work flows through. They belong
+  in the deferred tuning pass.
+- Calendar write uses the scope granted at connect time; no re-consent needed.
+
+## Phase 5 — original scope notes
 - Calendar scope is already requested. Two-way Google Calendar sync (`scheduled_at`/`duration_min` ↔ events), AI daily plan filling ~70% of free time (approve → time-block), re-plan diff, deadline-risk warnings, free-gap suggestions, morning brief (email/push; WhatsApp later).
 
 ## Phase 6 — AI does the work
