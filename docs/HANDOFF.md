@@ -5,8 +5,30 @@ Kept at the top because it is the thing most likely to be assumed rather than
 checked. Nothing below has been exercised by Amit on real data. Lint, build and
 deploy all pass, which today proved repeatedly is not the same as working.
 
-### Blocking — nothing real has ever flowed through these
-- [ ] **WhatsApp: a real message.** Zero real groups (`@g.us`) have ever reached
+### ✅ RESOLVED 11 Sept 2026 — real WhatsApp capture is proven
+At 11:38 UTC Deepak Agrawal posted in `120363420434303553@g.us`:
+`Task` / `31. Ireland as a next destination for organic ranking` / `32. College
+wise page` / `33. Course x college wise page`. The bot forwarded it and Tracker
+produced **three** tasks at 0.95 confidence, each quoting its own line, person
+matched by phone, planned dates assigned. Whole chain confirmed end to end: real
+group → bot → endpoint → Task marker recognised → one message split into three.
+Phase 3 is genuinely done, not merely built.
+
+### Open, small, deferred by Amit (11 Sept)
+- [ ] **Deepak Agrawal exists twice** — once from email
+      (`deepak@fundmycampus.com`), once from WhatsApp (`+919711358612`). The
+      schema was built for one identity across channels; nothing merges them yet
+      because the two handles never coincided. Merge = move tasks/messages to one
+      row, union emails/phones/whatsapp_ids, delete the other. Worth doing before
+      People counts are trusted, and worth a general merge rule afterwards or it
+      will recur with every contact reached on both channels.
+- [ ] **The real group has no name** — stored as the raw
+      `120363420434303553@g.us`. The bot is not sending `group.name`. Cosmetic,
+      but ask the bot team to include it; the Review page and meeting prep both
+      show it to Amit.
+
+### Superseded — kept for the record
+- [x] **WhatsApp: a real message.** Zero real groups (`@g.us`) have ever reached
       `ingest-whatsapp`; all traffic so far is synthetic (our tests + the bot's
       probe, whose group id was `connectivity-check@probe`). In an enabled group
       post two messages and check Review within ~60s:
