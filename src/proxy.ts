@@ -26,6 +26,13 @@ export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const isPublic = path.startsWith("/login") || path.startsWith("/auth") || path.startsWith("/icons") || path === "/manifest.webmanifest";
   if (!user && !isPublic) {
+    // API routes answer with JSON. Redirecting them to the login PAGE hands the
+    // caller a 200 full of HTML, so fetch().json() yields nothing and the UI
+    // shows an empty result with no error — which is how an expired session
+    // looks like a broken feature.
+    if (path.startsWith("/api/")) {
+      return NextResponse.json({ error: "not signed in" }, { status: 401 });
+    }
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
