@@ -90,6 +90,29 @@ then check `whatsapp_groups` for a row ending `@g.us`, and Review. Also worth
 asking whether the probe's `@probe` group id bypassed a check a real `@g.us`
 group would hit.
 
+### Pending for Phase 3 (agreed 11 Sept 2026, deferred by Amit)
+1. **Verify real capture.** Post in AdmitVerse Tech Team:
+   ```
+   Task
+   test message for tracker, ignore
+   ```
+   then check `whatsapp_groups` for a row ending `@g.us` and check Review. Not a
+   formality: the bot's probe used the group id `connectivity-check@probe`, so if
+   anything in its path validates the real `@g.us` shape, the probe sailed past a
+   check a real group would hit.
+2. **WhatsApp section in Tracker Settings (~30 min, not started).** There is none
+   today — `whatsapp_groups.enabled` exists and is enforced, but no UI reaches it,
+   so the Tracker-side switch can only be flipped with SQL. Every other
+   integration is controllable from Settings; this one is not. Build: list the
+   groups the bot has sent from with an on/off toggle each, last-received time,
+   and the token with copy + rotate buttons (rotation currently needs SQL from
+   Claude). Self-contained; touches nothing running.
+3. **Voice notes — undecided, not built.** A voice note containing work is
+   currently ignored entirely. Needs the bot to send the audio, transcription
+   (OpenRouter audio model, or Sarvam for Hinglish), then the existing extractor.
+   Amit has not said how often people send him voice notes with real work in them;
+   ask before building.
+
 ### Test data to clear before trusting the numbers
 People `Priya` / `Vikas` / `Neha` (+9190000000xx), the three `120363TEST*` groups
 and `connectivity-check@probe`, and messages with ids like `test-*`, `tk-*`, `v2-*`,
