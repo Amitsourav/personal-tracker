@@ -20,6 +20,18 @@ Two real bugs were found and fixed getting there:
 2. **`ingest-gmail` discarded insert errors**, so a fully failing sync reported success. It now records them in `sync_runs.error`. Same deploy widened the automated-sender prefilter (`@notify.` — nine identical Railway alerts had eaten a whole run), added same-sender/same-subject dedupe per run, and raised the scan from 24 ids/3 days to 100 ids/7 days.
 
 ### Still open (not blocking use)
+0. **FIXED 11 Sept: automatic Gmail sync had never run.** The pg_cron job used the
+   legacy anon JWT, which this project no longer accepts (it issues
+   `sb_publishable_*` keys), so every tick was rejected 401 at the gateway.
+   pg_cron reported "succeeded" because the POST was sent — only the response was
+   rejected — so it looked healthy. `sync_runs` showed three gmail runs ever, all
+   manual. Now authenticates with the sync token (`user_by_sync_token`, plain
+   string compare, JWT-format independent); the cron builds its header from the
+   token at run time so rotation needs no reschedule. The anon-key branch was
+   removed: the publishable key is public and must never trigger paid AI work.
+   Verified: 14 clean scheduled runs in the first hour.
+   **Lesson: `cron.job_run_details.status` says the request was sent, NOT that it
+   was accepted. Always confirm against `sync_runs` or `function_edge_logs`.**
 1. **Google app is in Testing mode — the Gmail connection expires ~18 Sept 2026.** Amit is on the Test users list; publishing is blocked until the Branding page is completed, which needs a privacy policy + terms URL. Next step: add `/privacy` and `/terms` pages to the app, fill Branding, then Audience → Publish app.
 2. Google sign-in provider (Supabase → Auth → Providers → Google) never enabled — magic link works, so this is cosmetic.
 
@@ -33,7 +45,57 @@ Amit's call: do not tune phase by phase. Build all the phases first, then do one
 - **Monthly cap** $10 — revisit once WhatsApp volume lands, since it will dominate call count.
 - Chrono parses English only; Hinglish words are mapped in `src/lib/quickadd.ts` (`HINGLISH` table) — extend during the tuning pass.
 
-## Phase 3 — WhatsApp capture (design decided)
+## Phase 3 — WhatsApp capture: BUILT BOTH SIDES, REAL CAPTURE NOT YET VERIFIED (11 Sept 2026)
+
+**Design changed.** The Mac-helper-reading-SQLite plan below was dropped. Amit
+already runs a Baileys bot (`Amitsourav/whatsappbot`, Railway service
+`whatsappbot`) in his work groups, so it forwards to Tracker instead. That removes
+the Mac helper, Full Disk Access, the MacBook-must-be-awake limitation, and the
+~60s polling delay. Design + contract: `docs/WHATSAPP-BOT-INTEGRATION.md`.
+
+Tracker side: `ingest-whatsapp` (deployed, `verify_jwt` off — the bot has no user
+JWT and authenticates with `user_secrets.whatsapp_token`). One AI call per batch.
+Chat-specific prompt. Recognises the team's `Task` prefix convention as an
+explicit task at >= 0.8 confidence (their most common format, and it carries
+neither `mentionedMe` nor `isReplyToMe`).
+
+Bot side: reported built and live by the bot team — outbox table, `tracker_enabled`
+per group, flush worker every 60s, wrapped orchestrator hook, panel toggle, 332
+tests including one proving a Tracker failure cannot stop a lead reaching the CRM.
+Railway variables set. One group (AdmitVerse Tech Team) switched on.
+
+### Proven
+- Endpoint auth: 401 without token, 401 with the publishable key, 405 on GET
+- Extraction on synthetic batches: tags, Hinglish (`kal tak`/`parso`/EOD/urgent),
+  ignores acknowledgements, ignores work aimed at a third party, `Task` prefix
+  captured, `Tasks` plural correctly not captured
+- The wire: the bot reached the endpoint with a 23-message connectivity probe on
+  11 Sept 07:48 UTC — token, batching, storage and extraction all worked
+
+### NOT proven — the one thing left
+**No message from a real WhatsApp group has ever arrived.** The only traffic is
+synthetic: three of our own test batches and the bot's probe, whose group id is
+`connectivity-check@probe` (a real group id ends `@g.us`). AdmitVerse Tech Team
+has never appeared. The unverified link is the bot's own filter: whether a real
+`@Amit` tag or a real `Task` message is queued and sent.
+
+To settle it, post in that group:
+
+```
+Task
+test message for tracker, ignore
+```
+
+then check `whatsapp_groups` for a row ending `@g.us`, and Review. Also worth
+asking whether the probe's `@probe` group id bypassed a check a real `@g.us`
+group would hit.
+
+### Test data to clear before trusting the numbers
+People `Priya` / `Vikas` / `Neha` (+9190000000xx), the three `120363TEST*` groups
+and `connectivity-check@probe`, and messages with ids like `test-*`, `tk-*`, `v2-*`,
+`probe-*`. Harmless but they inflate counts.
+
+## Phase 3 — original Mac-helper design (SUPERSEDED, kept for reference)
 - Mac helper (Node or Python script + `launchd` agent) reads WhatsApp Desktop's local SQLite **read-only**: `~/Library/Group Containers/group.net.whatsapp.WhatsApp.shared/ChatStorage.sqlite` (tables `ZWAMESSAGE`, `ZWACHATSESSION`, `ZWAPROFILEPUSHNAME`; Core Data timestamps = seconds since 2001-01-01). Needs **Full Disk Access** for the helper's binary. Copy the DB to a temp file before opening (WAL).
 - Allow-list only: Amit picks chats (`user_secrets` or a new `whatsapp_chats` table with `jid, name, enabled`). Everything else is never read.
 - Helper posts new messages (batched, every ~60 s) to a new edge function `ingest-whatsapp` with a per-user token; reuse the same extraction pipeline (factor `extract()` into a shared module). `messages.channel='whatsapp'`, `external_id` = message id, `sender_handle` = phone/JID; match `people.phones` / `whatsapp_ids`.
