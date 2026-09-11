@@ -6,11 +6,14 @@ import { PriorityFlag } from "@/components/ui";
 import { Sparkles, RefreshCw, Check, X, CalendarDays, Clock, ChevronRight, ChevronDown } from "lucide-react";
 import { Brief } from "@/components/Brief";
 import { MeetingPrep } from "@/components/MeetingPrep";
+import { FreeGap } from "@/components/FreeGap";
 
 type Block = {
   task_id: string; title: string; priority: number; due_at: string | null;
   start_at: string; minutes: number; reason: string;
 };
+/** What a re-plan did to a task, relative to what was already scheduled. */
+type Change = { kind: "new" } | { kind: "moved"; from: string } | { kind: "same" };
 type Event = {
   id: string; title: string; start_at: string; end_at: string;
   all_day: boolean; self_response: string | null; html_link: string | null;
@@ -41,6 +44,8 @@ export default function Plan() {
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [syncing, setSyncing] = useState(false);
   const [openPrep, setOpenPrep] = useState<string | null>(null);
+  const [diff, setDiff] = useState<Map<string, Change>>(new Map());
+  const [dropped, setDropped] = useState<string[]>([]);
   const sb = createClient();
 
   const loadEvents = useCallback(async () => {
@@ -57,6 +62,9 @@ export default function Plan() {
 
   async function plan() {
     setLoading(true); setError(null); setDismissed(new Set());
+    // Snapshot what is scheduled BEFORE re-planning, so the new proposal can say
+    // what it moved instead of silently replacing the day.
+    const before = new Map(scheduled.map(t => [t.id, t.scheduled_at as string]));
     const r = await fetch("/api/ai/plan", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ date }),
@@ -64,7 +72,17 @@ export default function Plan() {
     const j = await r.json().catch(() => ({}));
     setLoading(false);
     if (!r.ok) { setError(j.error ?? `Failed (${r.status})`); return; }
-    setBlocks(j.blocks ?? []); setNote(j.note ?? "");
+    const next: Block[] = j.blocks ?? [];
+    const changes = new Map<string, Change>();
+    for (const b of next) {
+      const was = before.get(b.task_id);
+      if (!was) changes.set(b.task_id, { kind: "new" });
+      else if (hhmm(was) !== hhmm(b.start_at)) changes.set(b.task_id, { kind: "moved", from: was });
+      else changes.set(b.task_id, { kind: "same" });
+    }
+    setDiff(changes);
+    setDropped(scheduled.filter(t => !next.some(b => b.task_id === t.id)).map(t => t.title));
+    setBlocks(next); setNote(j.note ?? "");
   }
 
   const live = (blocks ?? []).filter(b => !dismissed.has(b.task_id));
@@ -126,6 +144,7 @@ export default function Plan() {
 
       <div className="flex-1 overflow-auto p-4 grid gap-5 max-w-[820px]">
         <Brief events={events} date={date} />
+        <FreeGap events={events} isToday={date === todayISO()} />
 
         {allDay.length > 0 && (
           <div className="flex flex-wrap gap-2">
@@ -182,7 +201,17 @@ export default function Plan() {
                       {hhmm(b.start_at)}<span className="text-ink-3"> · {b.minutes}m</span>
                     </span>
                     <div className="min-w-0">
-                      <div className="text-[13px] truncate flex items-center gap-1.5"><PriorityFlag p={b.priority} /> {b.title}</div>
+                      <div className="text-[13px] truncate flex items-center gap-1.5">
+                        <PriorityFlag p={b.priority} /> {b.title}
+                        {diff.get(b.task_id)?.kind === "moved" && (
+                          <span className="pill text-[10.5px] bg-warn/15 text-warn shrink-0">
+                            moved from {hhmm((diff.get(b.task_id) as { from: string }).from)}
+                          </span>
+                        )}
+                        {diff.get(b.task_id)?.kind === "new" && diff.size > 0 && (
+                          <span className="pill text-[10.5px] bg-accent-soft text-accent shrink-0">new</span>
+                        )}
+                      </div>
                       <div className="text-[11.5px] text-ink-3 truncate">{b.reason}</div>
                     </div>
                     <button className="btn ghost sm text-danger" title="Not today"
@@ -190,6 +219,12 @@ export default function Plan() {
                   </div>
                 ))}
               </div>
+              {dropped.length > 0 && (
+                <div className="mt-2 text-[11.5px] text-ink-3">
+                  No longer in the plan: <b className="text-ink-2">{dropped.join(", ")}</b> — accepting will
+                  leave {dropped.length === 1 ? "it" : "them"} scheduled as before unless you unschedule {dropped.length === 1 ? "it" : "them"}.
+                </div>
+              )}
               <div className="flex gap-2 mt-2">
                 <button className="btn primary sm" onClick={acceptAll} disabled={syncing}>
                   {syncing ? <RefreshCw size={13} className="animate-spin" /> : <Check size={13} />}
