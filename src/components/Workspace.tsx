@@ -49,12 +49,40 @@ export function Workspace(p: WorkspaceProps) {
   const [search, setSearch] = useState("");
   const [hydrated, setHydrated] = useState(false);
 
-  // remember per-scope prefs
+  // Remember per-scope prefs — but never load straight back into a layout that
+  // killed the tab last time. The chosen layout is written to a "rendering"
+  // marker on switch and cleared a moment after it survives; if the marker is
+  // still there on the next load, that render never finished, so fall back to
+  // the list. Without this, one crashing view locks the page out permanently
+  // and the only way back is clearing site data.
   useEffect(() => {
-    try { const raw = localStorage.getItem(`ws:${p.scopeKey}`); if (raw) { const s = JSON.parse(raw); if (s.layout) setLayout(s.layout); if (s.group) setGroup(s.group); if (s.sort) setSort(s.sort); if (s.showDone != null) setShowDone(s.showDone); } } catch {}
+    const crashed = (() => { try { return localStorage.getItem(`ws:${p.scopeKey}:rendering`); } catch { return null; } })();
+    try {
+      const raw = localStorage.getItem(`ws:${p.scopeKey}`);
+      if (raw) {
+        const s = JSON.parse(raw);
+        if (s.layout) setLayout(crashed && crashed !== "list" ? "list" : s.layout);
+        if (s.group) setGroup(s.group);
+        if (s.sort) setSort(s.sort);
+        if (s.showDone != null) setShowDone(s.showDone);
+      }
+    } catch {}
+    try { localStorage.removeItem(`ws:${p.scopeKey}:rendering`); } catch {}
     setHydrated(true);
   }, [p.scopeKey]);
   useEffect(() => { if (hydrated) try { localStorage.setItem(`ws:${p.scopeKey}`, JSON.stringify({ layout, group, sort, showDone })); } catch {} }, [layout, group, sort, showDone, hydrated, p.scopeKey]);
+
+  // Survived the render: clear the marker. A tab that dies first never gets here.
+  useEffect(() => {
+    if (!hydrated) return;
+    const t = setTimeout(() => { try { localStorage.removeItem(`ws:${p.scopeKey}:rendering`); } catch {} }, 2000);
+    return () => clearTimeout(t);
+  }, [layout, hydrated, p.scopeKey]);
+
+  const chooseLayout = (l: Layout) => {
+    try { localStorage.setItem(`ws:${p.scopeKey}:rendering`, l); } catch {}
+    setLayout(l);
+  };
 
   const merged: ViewFilter = { ...p.baseFilter, ...filter, search: search || undefined, include_done: showDone || p.baseFilter.include_done };
   const visible = useMemo(() => sortTasks(applyFilter(tasks.filter(t => !t.parent_id || p.baseFilter.status?.includes("done")), taskTags, merged), sort), [tasks, taskTags, merged, sort]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -117,7 +145,7 @@ export function Workspace(p: WorkspaceProps) {
         <div className="ml-auto flex items-center gap-1">
           <div className="hidden md:flex items-center gap-1 border border-line rounded-md h-7 px-1.5 w-[180px] focus-within:border-accent"><Search size={13} className="text-ink-3" /><input id={`search-${p.scopeKey}`} className="bg-transparent outline-none flex-1 text-[12px] min-w-0" placeholder="Filter tasks…" value={search} onChange={e => setSearch(e.target.value)} /></div>
           <div className="flex border border-line rounded-md overflow-hidden">
-            {LAYOUTS.map(l => <button key={l.key} title={l.label} className={clsx("h-7 w-8 grid place-items-center", layout === l.key ? "bg-selected text-accent" : "text-ink-3 hover:bg-hover hover:text-ink")} onClick={() => setLayout(l.key)}><l.icon size={14} /></button>)}
+            {LAYOUTS.map(l => <button key={l.key} title={l.label} className={clsx("h-7 w-8 grid place-items-center", layout === l.key ? "bg-selected text-accent" : "text-ink-3 hover:bg-hover hover:text-ink")} onClick={() => chooseLayout(l.key)}><l.icon size={14} /></button>)}
           </div>
           <Popover align="right" trigger={<button className={clsx("btn sm", group !== "none" && "text-accent border-accent")}><Rows3 size={13} /> <span className="hidden sm:inline">{group === "none" ? "Group" : `By ${group}`}</span></button>}>
             {(close) => <>{(["none", "due", "project", "priority", "status", "person"] as GroupBy[]).map(g => <button key={g} className="menu-item capitalize" data-active={group === g} onClick={() => { setGroup(g); close(); }}>{g === "none" ? "No grouping" : g}{group === g && <Check size={12} className="ml-auto" />}</button>)}</>}

@@ -28,10 +28,13 @@ export function TableView({ tasks, sort, setSort }: { tasks: Task[]; sort: SortS
   const cur = sort[0];
   const toggleSort = (f?: keyof Task) => { if (!f) return; setSort(cur?.field === f ? (cur.dir === "asc" ? [{ field: f, dir: "desc" }] : []) : [{ field: f, dir: "asc" }]); };
   if (!tasks.length) return <Empty />;
+  // 36px checkbox + the title column's 260px minimum + every fixed column.
+  // Reserve less and the grid overflows its own scroll container, putting the
+  // last column out of reach.
   const grid = COLS.map(c => c.w).join(" ");
   return (
     <div className="overflow-x-auto border border-line rounded-lg bg-panel pb-0">
-      <div className="min-w-[1200px]">
+      <div className="min-w-[1346px]">
         <div className="grid sticky top-0 bg-panel-2 border-b border-line text-[11px] font-semibold text-ink-3 uppercase tracking-wide z-10" style={{ gridTemplateColumns: `36px ${grid}` }}>
           <div />
           {COLS.map(c => <button key={c.key} className={clsx("h-8 px-2 text-left flex items-center gap-1 hover:text-ink", c.sortField && "cursor-pointer")} onClick={() => toggleSort(c.sortField)}>{c.label}{cur?.field === c.sortField && (cur.dir === "asc" ? <ArrowUp size={11} /> : <ArrowDown size={11} />)}</button>)}
