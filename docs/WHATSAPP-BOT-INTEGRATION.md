@@ -358,3 +358,72 @@ with no `Task` marker is still forwarded.
 - Tracker being unreachable produces warnings and a growing outbox, and **zero**
   impact on lead capture
 - All groups off → no outbound Tracker traffic at all
+
+## 14. ADDENDUM (12 Sept 2026) — voice notes
+
+**Decision: the bot forwards the audio, Tracker transcribes it.** The bot stays
+a forwarder and never has to know what a task looks like, which is the same
+division of labour as everything else here.
+
+### What changed on the Tracker side
+
+`ingest-whatsapp` v5 is deployed and live. Each message may now carry an
+`audio` object. When one arrives with no text, Tracker transcribes it and the
+transcript becomes that message's text — after which it goes through exactly
+the same extraction, the same nine-way classification, and the same Review
+queue as a typed message. Nothing downstream changes.
+
+WhatsApp voice notes are ogg/opus and Gemini reads that format directly, so
+**no transcoding is needed**. Send the bytes as they arrive.
+
+### What the bot needs to send
+
+One optional field per message, alongside the existing ones:
+
+```jsonc
+{
+  "id": "3EB0...",
+  "text": null,                    // null or "" for a voice note
+  "senderPhone": "+919711358612",
+  "senderName": "Deepak Agrawal",
+  "timestamp": 1789200000,
+  "mentionedMe": false,
+  "isReplyToMe": false,
+  "fromOwner": false,
+  "audio": {
+    "data": "T2dnUwACAAAA...",     // base64, NO "data:" prefix, NO mime header
+    "format": "ogg",               // optional, defaults to "ogg"
+    "seconds": 23                  // optional, for logging only
+  }
+}
+```
+
+In Baileys this is `downloadMediaMessage(msg, 'buffer', {})` on a
+`audioMessage`, then `buf.toString('base64')`.
+
+### Rules
+
+1. **Forward a voice note under the same rules as text** (§6): tagged, a reply
+   to Amit, or from Amit himself. The bot cannot read audio, so it cannot check
+   for a `Task` marker — that is expected, and those cases are simply missed.
+   Do not forward every voice note in every group to compensate.
+2. **Send `text: null`.** If both are present Tracker keeps the text and ignores
+   the audio.
+3. **Skip anything over ~2 MB of base64** (roughly 4 minutes). Tracker rejects
+   it anyway and the POST is wasted.
+4. **Batch as usual.** Tracker transcribes at most 8 voice notes per POST, so a
+   burst is capped rather than dropped; the rest can come in the next batch.
+5. **Same outbox rules.** A voice note that fails to send retries like any other
+   message, and its `id` is the dedupe key exactly as before.
+
+### What Amit will see
+
+The transcript itself, in Review or Signals, marked as having come from a voice
+note. Tracker transcribes only — it never summarises — because the Review page
+quotes the source sentence back to him as evidence, and a paraphrase there
+would put words in the sender's mouth.
+
+A voice note nobody could transcribe is still recorded, marked
+`voice note could not be transcribed`, and set aside. Silence in the log would
+be indistinguishable from a message that never arrived, and those need
+different fixes.

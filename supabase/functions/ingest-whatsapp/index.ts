@@ -12,6 +12,11 @@ import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const MAX_MESSAGES = 40;
+// Transcription is the one per-message AI call in this function, so it is
+// bounded separately: a group that suddenly posts thirty voice notes must not be
+// able to spend the month's budget in a single POST.
+const MAX_TRANSCRIBE_PER_RUN = 8;
+const MAX_AUDIO_B64 = 3_000_000;   // ~2.2 MB of audio — several minutes of speech
 
 type Incoming = {
   id: string;
@@ -23,6 +28,9 @@ type Incoming = {
   isReplyToMe?: boolean;        // reply to a message the owner sent
   fromOwner?: boolean;          // Amit's OWN message: a promise he made, not a task
   quotedText?: string | null;
+  // A voice note. WhatsApp sends ogg/opus; Gemini reads it directly, so nobody
+  // has to transcode. `data` is base64 with no data: prefix.
+  audio?: { data: string; format?: string; seconds?: number } | null;
 };
 type Body = { group: { id: string; name?: string | null }; messages: Incoming[] };
 type Person = { id: string; name: string; phones: string[]; trust_level: string };
@@ -72,7 +80,9 @@ async function run(db: SupabaseClient, uid: string, body: Body) {
 
   // Record every message first, so a redelivery or a mid-run failure cannot
   // create the same task twice. Same rule the bot itself follows.
-  const incoming = body.messages.filter(m => m?.id && (m.text ?? "").trim()).slice(0, MAX_MESSAGES);
+  const incoming = body.messages
+    .filter(m => m?.id && ((m.text ?? "").trim() || m.audio?.data))
+    .slice(0, MAX_MESSAGES);
   if (!incoming.length) return finish({ fetched: 0 });
 
   const { data: seen } = await db.from("messages").select("external_id")
@@ -81,24 +91,46 @@ async function run(db: SupabaseClient, uid: string, body: Body) {
   const fresh = incoming.filter(m => !seenSet.has(m.id));
   if (!fresh.length) return finish({ fetched: incoming.length });
 
+  // Transcribe before anything else reads .text, so from here on a voice note is
+  // just a message: same extraction, same classification, same review queue.
+  let transcribed = 0;
+  const voiceIds = new Set<string>();
+  for (const m of fresh) {
+    if (!m.audio?.data || (m.text ?? "").trim()) continue;
+    voiceIds.add(m.id);
+    if (transcribed >= MAX_TRANSCRIBE_PER_RUN || m.audio.data.length > MAX_AUDIO_B64) { m.text = null; continue; }
+    const said = await transcribe(db, uid, sec, m.audio);
+    if (said) { m.text = said; transcribed++; }
+  }
+
   const { data: peopleRows } = await db.from("people").select("id,name,phones,trust_level").eq("user_id", uid);
   const people = (peopleRows ?? []) as Person[];
   const byPhone = (p: string | null) => p ? people.find(x => (x.phones ?? []).some(v => same(v, p))) : undefined;
 
   for (const m of fresh) {
     const person = byPhone(m.senderPhone);
+    const voice = voiceIds.has(m.id);
+    // A voice note nobody could transcribe is recorded and set aside rather than
+    // dropped: silence in the log would look identical to a message that never
+    // arrived, and those need different fixes.
+    const skip = person?.trust_level === "ignore" ? "ignored person"
+      : voice && !(m.text ?? "").trim() ? "voice note could not be transcribed"
+      : null;
     await db.from("messages").upsert({
       user_id: uid, channel: "whatsapp", external_id: m.id, thread_id: body.group.id,
+      is_outgoing: !!m.fromOwner,
       sender_name: m.senderName ?? m.senderPhone, sender_handle: m.senderPhone,
       sent_at: new Date(m.timestamp * 1000).toISOString(),
       subject: groupName, body: redact(m.text ?? "").slice(0, 3000),
+      media_kind: voice ? "audio" : null,
       person_id: person?.id ?? null,
-      skipped_reason: person?.trust_level === "ignore" ? "ignored person" : null,
-      processed_at: person?.trust_level === "ignore" ? new Date().toISOString() : null,
+      skipped_reason: skip,
+      processed_at: skip ? new Date().toISOString() : null,
     }, { onConflict: "user_id,channel,external_id" });
   }
 
-  const candidates = fresh.filter(m => byPhone(m.senderPhone)?.trust_level !== "ignore");
+  const candidates = fresh.filter(m =>
+    byPhone(m.senderPhone)?.trust_level !== "ignore" && (m.text ?? "").trim());
   if (!candidates.length) return finish({ fetched: incoming.length, candidates: 0 });
 
   const { data: profile } = await db.from("profiles").select("*").eq("id", uid).single();
@@ -138,7 +170,7 @@ async function run(db: SupabaseClient, uid: string, body: Body) {
   if (!theirs.length) {
     await db.from("messages").update({ processed_at: new Date().toISOString() })
       .eq("user_id", uid).eq("channel", "whatsapp").in("external_id", candidates.map(m => m.id));
-    return finish({ fetched: incoming.length, candidates: candidates.length, created_tasks: created,
+    return finish({ fetched: incoming.length, candidates: candidates.length, created_tasks: created, transcribed,
       error: errors.length ? `${errors.length} insert(s) failed: ${errors[0]}`.slice(0, 500) : null });
   }
 
@@ -199,7 +231,7 @@ async function run(db: SupabaseClient, uid: string, body: Body) {
   }
 
   return finish({
-    fetched: incoming.length, candidates: candidates.length, created_tasks: created,
+    fetched: incoming.length, candidates: candidates.length, created_tasks: created, transcribed,
     error: errors.length ? `${errors.length} task insert(s) failed: ${errors[0]}`.slice(0, 500) : null,
   });
 }
@@ -223,10 +255,52 @@ function redact(s: string) {
  * match "Tasks", so "Tasks are pending" is not caught.
  */
 function isExplicitTask(text: string | null) {
-  return /^\s*task\b[:\-\u2013]?\s*/i.test(text ?? "");
+  return /^\s*task\b[:\-–]?\s*/i.test(text ?? "");
 }
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+}
+
+/**
+ * A voice note, as words.
+ *
+ * Transcription only — no summarising, no "he wants you to…". The extraction
+ * prompt downstream already reads intent out of Hinglish well, and a model that
+ * paraphrased here would quietly put words in someone's mouth that the Review
+ * page would then quote back to Amit as evidence.
+ */
+async function transcribe(
+  db: SupabaseClient, uid: string,
+  sec: { openrouter_key: string | null; model_extract: string },
+  audio: { data: string; format?: string; seconds?: number },
+): Promise<string | null> {
+  try {
+    const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${sec.openrouter_key}`, "Content-Type": "application/json", "HTTP-Referer": "https://personal-tracker-eta-six.vercel.app", "X-Title": "Tracker" },
+      body: JSON.stringify({
+        model: sec.model_extract, temperature: 0,
+        messages: [{
+          role: "user",
+          content: [
+            { type: "text", text: "Transcribe this voice note exactly as spoken. It is usually Hindi, English or Hinglish from an Indian workplace — write Hindi in Roman letters, the way it was said, and do not translate it. Names, numbers and dates matter most, so keep them verbatim. Reply with the transcript alone: no summary, no commentary, no quotation marks. If there is no intelligible speech, reply with nothing at all." },
+            { type: "input_audio", input_audio: { data: audio.data, format: (audio.format ?? "ogg").replace(/^\./, "") } },
+          ],
+        }],
+        usage: { include: true },
+      }),
+    });
+    const j = await r.json();
+    if (!r.ok) { console.error("transcribe failed", r.status, JSON.stringify(j?.error ?? {})); return null; }
+    const usage = j.usage ?? {};
+    const { error: usageErr } = await db.from("ai_usage").insert({
+      user_id: uid, purpose: "transcribe_whatsapp", model: sec.model_extract,
+      input_tokens: usage.prompt_tokens ?? 0, output_tokens: usage.completion_tokens ?? 0, cost_usd: usage.cost ?? 0,
+    });
+    if (usageErr) console.error("ai_usage insert failed", JSON.stringify(usageErr));
+    const said = (j.choices?.[0]?.message?.content ?? "").trim();
+    return said.length >= 2 ? said.slice(0, 3000) : null;
+  } catch (e) { console.error("transcribe threw", String(e)); return null; }
 }
 
 async function extract(
@@ -248,6 +322,7 @@ Rules:
 - kind "request" = I must do it. kind "commitment" = the sender promised it to me and I am waiting on them.
 - Ignore: greetings, acknowledgements ("ok", "done", "thik hai", "ji"), status chatter, forwarded jokes, and anything already completed.
 - Messages are English, Hindi or Hinglish (Romanised Hindi). Interpret naturally: "bhej dena" = send it, "kar dena" = do it, "dekh lena" = check it, "pending hai" = still open.
+- Some messages are transcripts of voice notes, so they may ramble, restate themselves or end mid-sentence. Read them for intent and do not treat filler as content.
 - Dates resolve against each message's own sent time. Now is ${nowLocal} (${tz}). "kal" with a future verb = tomorrow; "parso" = day after; "aaj" = today; "EOD" = ${profile?.eod_time ?? "23:59"} that day; "EOW"/"end of week" = the coming Saturday (work days: ${workDays}); "jaldi"/"ASAP"/"urgent" = no date but priority 1. No deadline → due_iso null. Output due_iso as ISO 8601 with the ${tz} offset. due_has_time only if a clock time was given.
 - Priority: 1 urgent, 2 high (deadline within 2 days, or from a client/boss), 3 medium, 4 low.
 - If a message chases something in OPEN TASKS ("kya hua", "any update", "reminder"), use signal "follow_up" with that existing_task_id instead of creating a new task. If it says that task is finished, signal "done". Otherwise "new".
@@ -271,6 +346,7 @@ For each, give a one-line summary in plain English from MY point of view, under 
       m.mentionedMe ? "[TAGGED ME]" : "",
       m.isReplyToMe ? "[REPLY TO ME]" : "",
       isExplicitTask(m.text) ? "[EXPLICIT TASK]" : "",
+      m.audio ? "[VOICE NOTE, TRANSCRIBED]" : "",
     ].filter(Boolean).join(" ");
     const when = new Date(m.timestamp * 1000).toLocaleString("en-IN", { timeZone: tz, weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
     const quoted = m.quotedText ? `\n   (replying to: “${redact(m.quotedText).slice(0, 160)}”)` : "";
@@ -362,12 +438,13 @@ async function extractPromises(
   const workDays = (profile?.work_days ?? [1, 2, 3, 4, 5, 6]).map(d => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d]).join(", ");
   const me = profile?.display_name ?? "the user";
 
-  const system = `These are messages ${me} ("I") sent in a WhatsApp work group. Find the commitments I made \u2014 things I said I would do that are not done yet. Reply ONLY with JSON matching the schema.
+  const system = `These are messages ${me} ("I") sent in a WhatsApp work group. Find the commitments I made — things I said I would do that are not done yet. Reply ONLY with JSON matching the schema.
 Rules:
 - A promise is a first-person future commitment: "I'll send it", "kal bhej dunga", "main dekh leta hoon", "revert karta hoon", "will share by Friday". Someone is now waiting on me for it.
 - NOT promises: instructions I gave to SOMEONE ELSE ("Rohit ye kar dena"); things I said were already done ("bhej diya", "sent", "done"); acknowledgements ("ok", "noted", "theek hai"); opinions, questions, and small talk; vague intent with no deliverable ("dekhte hain", "let's see").
 - Hinglish: "bhej dunga" = I will send, "kar dunga" = I will do, "dekh ke batata hoon" = I will check and tell you, "laga deta hoon" = I will get on it, "bhej diya" = already sent (NOT a promise).
-- Dates resolve against each message's own sent time. Now is ${nowLocal} (${tz}). "kal" = next day, "parso" = day after, "aaj" = today, "EOD" = ${profile?.eod_time ?? "23:59"} that day, "EOW"/"end of week" = the coming Saturday (work days: ${workDays}). No date \u2192 due_iso null. ISO 8601 with the ${tz} offset. due_has_time only if a clock time was stated.
+- Some messages are transcripts of voice notes, so they may ramble or end mid-sentence. Read them for intent and do not treat filler as a commitment.
+- Dates resolve against each message's own sent time. Now is ${nowLocal} (${tz}). "kal" = next day, "parso" = day after, "aaj" = today, "EOD" = ${profile?.eod_time ?? "23:59"} that day, "EOW"/"end of week" = the coming Saturday (work days: ${workDays}). No date → due_iso null. ISO 8601 with the ${tz} offset. due_has_time only if a clock time was stated.
 - Priority: 1 if I said today or urgent, 2 if within 2 days, 3 otherwise, 4 for low-stakes.
 - If it matches something in ALREADY TRACKED, skip it.
 - message_id: the message it came from. title: short imperative naming what I owe, <= 12 words, English. quote: my exact promising sentence (<= 200 chars).
@@ -375,8 +452,9 @@ Rules:
 
   const transcript = msgs.map(m => {
     const when = new Date(m.timestamp * 1000).toLocaleString("en-IN", { timeZone: tz, weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-    const quoted = m.quotedText ? `\n   (replying to: \u201c${redact(m.quotedText).slice(0, 160)}\u201d)` : "";
-    return `[${m.id}] ${when}\n   ${redact(m.text ?? "").slice(0, 800)}${quoted}`;
+    const quoted = m.quotedText ? `\n   (replying to: “${redact(m.quotedText).slice(0, 160)}”)` : "";
+    const voice = m.audio ? " [VOICE NOTE, TRANSCRIBED]" : "";
+    return `[${m.id}] ${when}${voice}\n   ${redact(m.text ?? "").slice(0, 800)}${quoted}`;
   }).join("\n");
 
   const user = `GROUP: ${groupName}\n\nALREADY TRACKED (do not repeat):\n${openTasks.length ? openTasks.map(t => `- ${t.title} (${t.due_at ?? "no date"})`).join("\n") : "(none)"}\n\nMY MESSAGES\n${transcript}`;
