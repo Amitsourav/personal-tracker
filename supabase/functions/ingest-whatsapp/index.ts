@@ -257,6 +257,17 @@ function redact(s: string) {
 function isExplicitTask(text: string | null) {
   return /^\s*task\b[:\-–]?\s*/i.test(text ?? "");
 }
+/**
+ * A message that continues a numbered task list: "34. Invoice changes of Kuhoo".
+ *
+ * The team writes long lists across several messages and only the first carries
+ * the "Task" marker. On 11 Sep items 31-33 were captured and 34-37 were lost,
+ * because nothing distinguished the continuation from chatter. The number IS
+ * the marker — it is how this group has agreed to write work down.
+ */
+function isListItem(text: string | null) {
+  return /^\s*\d{1,3}\s*[.)]\s+\S/.test(text ?? "");
+}
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 }
@@ -319,6 +330,7 @@ Rules:
 - This is a work group. Most messages are chatter between other people — extract NOTHING from those. A message is only a task for me if it asks ME to do something, or someone promises something TO me.
 - Messages marked [TAGGED ME] or [REPLY TO ME] are aimed at me — weigh them heavily. A message aimed at someone else is not my task even if it describes work.
 - [EXPLICIT TASK] means the sender used the team's agreed "Task" format, which by convention always means a task for ME even though nobody tagged me. Always extract it, with confidence 0.8 or higher. Ignore the literal word "Task" when writing the title — the instruction is the line(s) after it. If one such message lists several things, output one task per line.
+- [TASK LIST ITEM] means the message continues a numbered list of work this group keeps, e.g. "34. Invoice changes of Kuhoo". The number is the marker: treat it exactly like [EXPLICIT TASK], with confidence 0.8 or higher, one task per numbered line, and leave the number out of the title. The exception is a message that merely discusses or answers someone else's numbered item rather than adding work — that is not a task.
 - kind "request" = I must do it. kind "commitment" = the sender promised it to me and I am waiting on them.
 - Ignore: greetings, acknowledgements ("ok", "done", "thik hai", "ji"), status chatter, forwarded jokes, and anything already completed.
 - Messages are English, Hindi or Hinglish (Romanised Hindi). Interpret naturally: "bhej dena" = send it, "kar dena" = do it, "dekh lena" = check it, "pending hai" = still open.
@@ -346,6 +358,7 @@ For each, give a one-line summary in plain English from MY point of view, under 
       m.mentionedMe ? "[TAGGED ME]" : "",
       m.isReplyToMe ? "[REPLY TO ME]" : "",
       isExplicitTask(m.text) ? "[EXPLICIT TASK]" : "",
+      !isExplicitTask(m.text) && isListItem(m.text) ? "[TASK LIST ITEM]" : "",
       m.audio ? "[VOICE NOTE, TRANSCRIBED]" : "",
     ].filter(Boolean).join(" ");
     const when = new Date(m.timestamp * 1000).toLocaleString("en-IN", { timeZone: tz, weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
