@@ -178,7 +178,7 @@ Amit's call: do not tune phase by phase. Build all the phases first, then do one
 already runs a Baileys bot (`Amitsourav/whatsappbot`, Railway service
 `whatsappbot`) in his work groups, so it forwards to Tracker instead. That removes
 the Mac helper, Full Disk Access, the MacBook-must-be-awake limitation, and the
-~60s polling delay. Design + contract: `docs/WHATSAPP-BOT-INTEGRATION.md`.
+~60s polling delay. Design + contract: `the bot integration spec (kept out of the repo)`.
 
 Tracker side: `ingest-whatsapp` (deployed, `verify_jwt` off — the bot has no user
 JWT and authenticates with `user_secrets.whatsapp_token`). One AI call per batch.

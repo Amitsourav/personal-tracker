@@ -4,3 +4,6 @@ node_modules
 *.log
 tsconfig.tsbuildinfo
 next-env.d.ts
+
+# Bot integration spec: kept private, shared with the bot team directly
+docs/WHATSAPP-BOT-INTEGRATION.md

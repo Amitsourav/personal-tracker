@@ -210,9 +210,10 @@ that lasts.
 
 ### 7. WhatsApp (optional)
 
-Needs a companion bot running [Baileys](https://github.com/WhiskeySockets/Baileys).
-The full specification — what to send, when to send it, dedupe rules, voice
-notes — is in [docs/WHATSAPP-BOT-INTEGRATION.md](docs/WHATSAPP-BOT-INTEGRATION.md).
+Needs a companion bot running [Baileys](https://github.com/WhiskeySockets/Baileys)
+that POSTs messages to the `ingest-whatsapp` function. The request shape is in
+`supabase/functions/ingest-whatsapp/index.ts` — see the `Incoming` type at the
+top, which is the contract.
 
 Your endpoint token:
 
@@ -256,7 +257,6 @@ More detail, and what's been proven versus merely built, in
 |---|---|
 | [docs/PLAN.md](docs/PLAN.md) | The phases and what each contains |
 | [docs/HANDOFF.md](docs/HANDOFF.md) | Current state, open questions, what is and isn't tested |
-| [docs/WHATSAPP-BOT-INTEGRATION.md](docs/WHATSAPP-BOT-INTEGRATION.md) | The bot specification |
 
 ---
 
