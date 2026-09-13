@@ -2,12 +2,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useStore } from "@/lib/store";
+import type { Task } from "@/lib/types";
 import { PageHeader, PageBody } from "@/components/PageHeader";
 import { Empty } from "@/components/views/ListView";
 import { formatDistanceToNow } from "date-fns";
 import {
   Info, Handshake, HelpCircle, GitBranch, CalendarClock,
-  TriangleAlert, Sparkles, Check, ExternalLink, MessageSquare, Mail,
+  TriangleAlert, Sparkles, Check, ExternalLink, MessageSquare, Mail, Plus,
 } from "lucide-react";
 
 type Signal = {
@@ -40,7 +41,7 @@ const TYPES: Record<string, { label: string; blurb: string; icon: typeof Info; t
 const ORDER = ["decision", "risk", "request", "commitment", "opportunity", "event", "information"];
 
 export default function Signals() {
-  const { toast } = useStore();
+  const { toast, addTask, people } = useStore();
   const [rows, setRows] = useState<Signal[] | null>(null);
   const sb = createClient();
 
@@ -57,6 +58,31 @@ export default function Signals() {
   const dismiss = async (ids: string[]) => {
     setRows(r => (r ?? []).filter(x => !ids.includes(x.id)));
     await sb.from("messages").update({ intake_seen_at: new Date().toISOString() }).in("id", ids);
+  };
+
+  /**
+   * Some signals turn out to be work after all — a risk you decide to act on, a
+   * decision you have to go and make. Retyping them by hand was the only way,
+   * which meant losing the quote and the sender, the two things that make a task
+   * make sense a week later. This carries both across.
+   */
+  const makeTask = async (s: Signal) => {
+    const from = s.sender_name || s.sender_handle || null;
+    const person = from ? people.find(p => p.name.toLowerCase() === from.toLowerCase()) : undefined;
+    await addTask({
+      title: (s.intake_summary ?? s.subject ?? "Follow up").slice(0, 200),
+      description: from ? `From ${from}${s.subject && s.subject !== s.intake_summary ? ` · ${s.subject}` : ""}` : null,
+      // Straight to the list, not Review: Amit pressed the button, so there is
+      // nothing left for him to approve.
+      status: "todo", priority: s.intake_type === "risk" || s.intake_type === "decision" ? 2 : 3,
+      person_id: person?.id ?? null,
+      source_kind: s.channel === "whatsapp" ? "whatsapp" : "gmail",
+      source_ref: s.id, source_link: s.link,
+      source_quote: (s.intake_summary ?? "").slice(0, 300),
+      ai_meta: { kind: "signal", signal_type: s.intake_type, subject: s.subject, channel: s.channel },
+    } as Partial<Task> & { title: string });
+    dismiss([s.id]);
+    toast("Added to your tasks");
   };
 
   if (rows === null) return null;
@@ -102,10 +128,16 @@ export default function Signals() {
                       )}
                     </div>
                   </div>
-                  <button className="btn ghost sm shrink-0" title="Got it"
-                    onClick={() => { dismiss([s.id]); toast("Cleared"); }}>
-                    <Check size={13} />
-                  </button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button className="btn ghost sm px-2" title="Make this a task"
+                      onClick={() => makeTask(s)}>
+                      <Plus size={13} />
+                    </button>
+                    <button className="btn ghost sm px-2" title="Got it"
+                      onClick={() => { dismiss([s.id]); toast("Cleared"); }}>
+                      <Check size={13} />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

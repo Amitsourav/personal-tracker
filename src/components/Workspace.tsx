@@ -84,7 +84,18 @@ export function Workspace(p: WorkspaceProps) {
     setLayout(l);
   };
 
-  const merged: ViewFilter = { ...p.baseFilter, ...filter, search: search || undefined, include_done: showDone || p.baseFilter.include_done };
+  // `merged` was rebuilt on every render, so the useMemo below it never hit its
+  // cache: every keystroke in the search box re-filtered and re-sorted the whole
+  // task list, then rebuilt the groups and board columns from it. Memoising the
+  // object itself is what makes the memo downstream mean anything.
+  // Keyed on the base filter's contents, not its identity: every page passes it
+  // as a fresh object literal (`baseFilter={{ due: "today" }}`), so depending on
+  // the reference would defeat the memo the moment a parent re-rendered.
+  const baseKey = JSON.stringify(p.baseFilter);
+  const merged: ViewFilter = useMemo(
+    () => ({ ...p.baseFilter, ...filter, search: search || undefined, include_done: showDone || p.baseFilter.include_done }),
+    [baseKey, filter, search, showDone], // eslint-disable-line react-hooks/exhaustive-deps
+  );
   const visible = useMemo(() => sortTasks(applyFilter(tasks.filter(t => !t.parent_id || p.baseFilter.status?.includes("done")), taskTags, merged), sort), [tasks, taskTags, merged, sort]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const groups: Group[] = useMemo(() => {
