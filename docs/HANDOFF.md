@@ -75,8 +75,9 @@ Phase 3 is genuinely done, not merely built.
 ### Deferred by choice
 - Morning brief is in-app only; email/push/WhatsApp delivery not built.
 - Voice notes (Phase 3) — never decided.
-- WhatsApp settings screen (Phase 3) — `whatsapp_groups.enabled` is enforced but
-  has no UI; SQL only.
+- ~~WhatsApp settings screen (Phase 3)~~ — **built 13 Sept**,
+  `src/components/WhatsAppSettings.tsx`: master switch, owner phone, token
+  (reveal / copy / rotate) and a per-group on/off list, in Settings.
 
 ### Test data to clear before trusting any numbers
 People `Priya` / `Vikas` / `Neha` (+9190000000xx); groups `120363TEST*` and

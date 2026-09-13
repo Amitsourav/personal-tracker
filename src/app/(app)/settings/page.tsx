@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { Suspense } from "react";
 import { IntegrationsSettings } from "@/components/IntegrationsSettings";
+import { WhatsAppSettings } from "@/components/WhatsAppSettings";
 import { PageHeader, PageBody } from "@/components/PageHeader";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -37,6 +38,7 @@ export default function Settings() {
           <Row label="Day starts / ends"><div className="flex gap-2"><input type="time" className="field w-[120px]" defaultValue={profile.day_start.slice(0, 5)} onBlur={e => updateProfile({ day_start: e.target.value })} /><input type="time" className="field w-[120px]" defaultValue={profile.day_end.slice(0, 5)} onBlur={e => updateProfile({ day_end: e.target.value })} /></div></Row>
         </Section>
         <Suspense><IntegrationsSettings /></Suspense>
+        <WhatsAppSettings />
         <Section title="Your data" hint="Everything stays in your own database. Export anytime.">
           <div className="flex gap-2"><button className="btn sm" onClick={exportJson}>Export JSON</button><button className="btn sm" onClick={exportCsv}>Export tasks CSV</button></div>
         </Section>
