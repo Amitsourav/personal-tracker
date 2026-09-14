@@ -9,6 +9,7 @@ import { X, Trash2, Plus, Repeat, Timer, Link2, ChevronRight } from "lucide-reac
 import { TaskContext } from "./TaskContext";
 import { DoWithAI } from "./DoWithAI";
 import { Why } from "./Why";
+import { WhereToStart } from "./WhereToStart";
 import { formatDistanceToNow, format } from "date-fns";
 import clsx from "clsx";
 
@@ -72,6 +73,7 @@ export function TaskDetail() {
             onChange={e => setDesc(e.target.value)} onBlur={() => { if (desc !== (task.description ?? "")) updateTask(task.id, { description: desc || null }); }} />
 
           <Why task={task} />
+          <WhereToStart task={task} />
 
           <DoWithAI task={task} />
 

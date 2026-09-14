@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Suspense } from "react";
 import { IntegrationsSettings } from "@/components/IntegrationsSettings";
 import { WhatsAppSettings } from "@/components/WhatsAppSettings";
+import { GitHubSettings } from "@/components/GitHubSettings";
 import { PageHeader, PageBody } from "@/components/PageHeader";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -39,6 +40,7 @@ export default function Settings() {
         </Section>
         <Suspense><IntegrationsSettings /></Suspense>
         <WhatsAppSettings />
+        <GitHubSettings />
         <Section title="Your data" hint="Everything stays in your own database. Export anytime.">
           <div className="flex gap-2"><button className="btn sm" onClick={exportJson}>Export JSON</button><button className="btn sm" onClick={exportCsv}>Export tasks CSV</button></div>
         </Section>
