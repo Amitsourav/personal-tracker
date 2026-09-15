@@ -36,7 +36,7 @@ export async function POST(request: Request) {
   }
 
   const [{ data: task }, { data: sec }, { data: repos }, { data: spend }] = await Promise.all([
-    supabase.from("tasks").select("id,title,description,source_quote,project_id").eq("id", taskId).is("deleted_at", null).maybeSingle(),
+    supabase.from("tasks").select("id,title,description,source_quote,project_id,created_at,status").eq("id", taskId).is("deleted_at", null).maybeSingle(),
     supabase.from("user_secrets").select("openrouter_key, model_extract, monthly_cap_usd").maybeSingle(),
     supabase.from("github_repos").select("full_name,description,language,readme,paths,path_count").eq("enabled", true).not("paths", "is", null),
     supabase.rpc("month_spend", { uid: user.id }),
@@ -145,6 +145,26 @@ Rules:
     ? await Promise.all(files.map(async f => ({ ...f, ...(await lastCommit(gh.github_token!, chosen.full_name, f.path) ?? {}) })))
     : files;
 
+  // Already done?
+  //
+  // The commits were fetched to give each file some context; they turn out to
+  // answer a better question. If the last change to one of these files describes
+  // this task, the work is probably finished and the task is stale.
+  const withCommits = (enriched as { path: string; message?: string | null; author?: string | null; at?: string | null }[])
+    .filter(f => f.message);
+  let done: { maybe_done: boolean; done_commit: unknown; done_reason: string | null } =
+    { maybe_done: false, done_commit: null, done_reason: null };
+
+  if (withCommits.length && task.status !== "done" && task.status !== "cancelled") {
+    done = await checkAlreadyDone(sec, task, withCommits);
+    if (done.maybe_done) {
+      await supabase.from("ai_usage").insert({
+        user_id: user.id, purpose: "already_done", model: sec.model_extract,
+        input_tokens: 0, output_tokens: 0, cost_usd: 0,
+      });
+    }
+  }
+
   const row = {
     user_id: user.id, task_id: taskId,
     repo: chosen?.full_name ?? null,
@@ -153,9 +173,78 @@ Rules:
     // Naming files that do not exist is itself evidence the answer is weak.
     confidence: files.length ? out.confidence ?? 0 : Math.min(out.confidence ?? 0, 0.2),
     model: sec.model_extract,
+    ...done,
   };
   const { error: saveErr } = await supabase.from("task_code_hints").upsert(row, { onConflict: "task_id" });
   if (saveErr) console.error("code hint save failed", saveErr);
 
   return NextResponse.json({ ...row, cached: false });
+}
+
+/**
+ * Does one of these commits describe the task itself?
+ *
+ * A separate, tiny call rather than part of the main prompt: the commits are
+ * only known after the files are chosen, and the question is a different one —
+ * not "where is this" but "has this already happened".
+ *
+ * Strict by design. Claiming work is finished when it is not sends Amit to a
+ * client saying it is done, which is a far worse failure than staying quiet.
+ */
+async function checkAlreadyDone(
+  sec: { openrouter_key: string | null; model_extract: string },
+  task: { title: string; description: string | null; source_quote: string | null; created_at: string },
+  files: { path: string; message?: string | null; author?: string | null; at?: string | null }[],
+) {
+  const none = { maybe_done: false, done_commit: null, done_reason: null };
+  const system = `You are told a task and the most recent commit touching each file that task points at. Decide whether one of those commits IS the task, already done. Reply ONLY with JSON matching the schema.
+
+Rules:
+- Say done ONLY when a commit plainly describes this same piece of work. A commit that merely touches the same area is not enough.
+- A commit made AFTER the task was created is much stronger evidence than one made before. A commit from before it was asked for is usually unrelated work in the same file.
+- Commit messages are terse and use conventional-commit prefixes. "feat(leads): a lead cannot leave \"created\" without a loan amount" IS the task "Make amount mandatory when moving lead stage".
+- If several fit, choose the one that describes it best.
+- Be strict. Telling him something is finished when it is not means he tells a client it is done. Staying quiet costs him a tick.
+- reason: one short sentence naming what matched, addressed to him.`;
+
+  const user = [
+    `TASK: ${task.title}`,
+    task.description ? `DETAILS: ${task.description}` : "",
+    task.source_quote ? `ASKED FOR AS: “${task.source_quote}”` : "",
+    `TASK CREATED: ${task.created_at}`,
+    "",
+    "LAST COMMIT ON EACH FILE:",
+    ...files.map(f => `- ${f.path} — “${f.message}” (${f.author ?? "unknown"}, ${f.at ?? "no date"})`),
+  ].filter(Boolean).join("\n");
+
+  const schema = {
+    type: "object", additionalProperties: false,
+    properties: {
+      done: { type: "boolean" },
+      path: { type: ["string", "null"] },
+      reason: { type: "string" },
+    },
+    required: ["done", "path", "reason"],
+  };
+
+  try {
+    const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${sec.openrouter_key}`, "Content-Type": "application/json",
+        "HTTP-Referer": "https://personal-tracker-eta-six.vercel.app", "X-Title": "Tracker",
+      },
+      body: JSON.stringify({
+        model: sec.model_extract, temperature: 0,
+        messages: [{ role: "system", content: system }, { role: "user", content: user }],
+        response_format: { type: "json_schema", json_schema: { name: "already_done", strict: true, schema } },
+      }),
+    });
+    if (!r.ok) return none;
+    const j = await r.json();
+    const out = JSON.parse((j.choices?.[0]?.message?.content ?? "{}").replace(/^```(?:json)?|```$/g, "").trim());
+    if (!out.done) return none;
+    const hit = files.find(f => f.path === out.path) ?? files[0];
+    return { maybe_done: true, done_commit: hit, done_reason: out.reason ?? null };
+  } catch { return none; }
 }
