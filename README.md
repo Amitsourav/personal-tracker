@@ -81,6 +81,9 @@ Worth being explicit, because this app reads your mail.
 - **Your data lives in your own Supabase project.** Not ours. There is no shared server.
 - **Row-level security** is enforced by the database, not by application code. One account cannot read another's rows even if the app has a bug.
 - **OTPs, long numbers and IFSC codes are stripped** before any text is sent to a model.
+- **Your source code stays on GitHub.** Finding where a task lives, spotting work already
+  done and checking what a change affects all work from file *names* alone. One feature —
+  “what is actually wrong?” — does read the files, and is a separate button that says so.
 - **Message bodies are deleted after 30 days** by a scheduled job. The task survives; the email doesn't.
 - **Nothing is sent on your behalf.** Drafts are drafts until you press send.
 - **Your API keys are yours** — stored in your database, used only by your account.

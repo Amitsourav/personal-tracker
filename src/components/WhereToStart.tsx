@@ -1,11 +1,17 @@
 "use client";
 import { useState } from "react";
-import { Code2, ExternalLink, RefreshCw, ChevronDown, ChevronRight, CircleCheck, X, Network, TriangleAlert } from "lucide-react";
+import { Code2, ExternalLink, RefreshCw, ChevronDown, ChevronRight, CircleCheck, X, Network, TriangleAlert, Stethoscope, Eye } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useStore } from "@/lib/store";
 import type { Task } from "@/lib/types";
 
 type Commit = { path: string; message?: string | null; author?: string | null; at?: string | null };
+type Diagnosis = {
+  cause: string; check_first: string; fix_sketch: string; unknowns: string;
+  confidence: number;
+  where: { path: string; symbol: string; why: string }[];
+  read: { path: string; truncated: boolean }[];
+};
 type Impact = {
   groups: { file: string; symbols: string[]; refs: { path: string; symbols: string[] }[] }[];
   total: number;
@@ -42,6 +48,9 @@ export function WhereToStart({ task }: { task: Task }) {
   const [dismissed, setDismissed] = useState(false);
   const [impact, setImpact] = useState<Impact | null>(null);
   const [impactBusy, setImpactBusy] = useState(false);
+  const [diag, setDiag] = useState<Diagnosis | null>(null);
+  const [diagBusy, setDiagBusy] = useState(false);
+  const [diagErr, setDiagErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -57,6 +66,23 @@ export function WhereToStart({ task }: { task: Task }) {
     if (!res.ok) { setErr(j.error ?? "Could not work it out"); return; }
     setHint(j); setOpen(true);
     setImpact(j.impact ?? null);
+    setDiag(j.diagnosis ?? null);
+  };
+
+  /**
+   * The only button here that sends source code anywhere, which is why it is a
+   * separate, deliberate press with the consequence written next to it.
+   */
+  const diagnose = async () => {
+    setDiagBusy(true); setDiagErr(null);
+    const res = await fetch("/api/github/diagnose", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ taskId: task.id }),
+    });
+    const j = await res.json();
+    setDiagBusy(false);
+    if (!res.ok) { setDiagErr(j.error ?? "Could not work it out"); return; }
+    setDiag(j.diagnosis);
   };
 
   /**
@@ -188,6 +214,60 @@ export function WhereToStart({ task }: { task: Task }) {
                 </li>
               ))}
             </ul>
+          )}
+
+          {/* Symptom to cause. */}
+          {h.repo && !!h.files.length && (
+            diag ? (
+              <div className="rounded-lg bg-panel px-2.5 py-2.5 grid gap-2">
+                <div className="flex items-center gap-1.5 text-[11.5px]">
+                  <Stethoscope size={12} className="text-accent" />
+                  <span className="font-semibold">What is probably wrong</span>
+                  <span className={`ml-auto ${diag.confidence >= 0.6 ? "text-ok" : diag.confidence >= 0.35 ? "text-ink-3" : "text-warn"}`}>
+                    {diag.confidence >= 0.6 ? "Fairly confident" : diag.confidence >= 0.35 ? "A theory" : "A guess"}
+                  </span>
+                </div>
+
+                <p className="text-[12.5px] text-ink leading-relaxed">{diag.cause}</p>
+
+                {!!diag.where.length && (
+                  <div className="grid gap-0.5">
+                    {diag.where.map(w => (
+                      <div key={w.path + w.symbol} className="text-[11.5px] min-w-0">
+                        <a className="font-mono text-ink hover:text-accent"
+                          href={`https://github.com/${h.repo}/blob/HEAD/${w.path}`} target="_blank" rel="noreferrer">
+                          {w.path}
+                        </a>
+                        {w.symbol && <span className="text-accent"> · {w.symbol}</span>}
+                        <div className="text-ink-3">{w.why}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="grid gap-1 text-[11.5px]">
+                  <div><span className="text-ink-3">Check first — </span><span className="text-ink-2">{diag.check_first}</span></div>
+                  <div><span className="text-ink-3">Fix is probably — </span><span className="text-ink-2">{diag.fix_sketch}</span></div>
+                  {diag.unknowns && (
+                    <div className="flex items-start gap-1 text-ink-3">
+                      <Eye size={11} className="mt-0.5 flex-none" />
+                      <span>Could not see: {diag.unknowns}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="grid gap-1">
+                <button className="btn sm w-full justify-center" onClick={diagnose} disabled={diagBusy}>
+                  <Stethoscope size={12} className={diagBusy ? "animate-pulse" : ""} />
+                  {diagBusy ? "Reading the code…" : "What is actually wrong?"}
+                </button>
+                <p className="text-[10.5px] text-ink-3 text-center">
+                  The only button here that sends these files&apos; contents to the AI.
+                </p>
+                {diagErr && <p className="text-[11px] text-warn text-center">{diagErr}</p>}
+              </div>
+            )
           )}
 
           {/* What else this touches. The question that costs a weekend. */}
