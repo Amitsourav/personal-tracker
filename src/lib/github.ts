@@ -92,3 +92,70 @@ export async function fileCommits(token: string, fullName: string, path: string,
     }));
   } catch { return []; }
 }
+
+/** One file's text, at the default branch. */
+export async function fileText(token: string, fullName: string, path: string): Promise<string | null> {
+  try {
+    const f = await gh<{ content?: string; encoding?: string; size: number }>(
+      token, `/repos/${fullName}/contents/${path.split("/").map(encodeURIComponent).join("/")}`,
+    );
+    if (!f.content || f.encoding !== "base64" || f.size > 400_000) return null;
+    return atob(f.content.replace(/\n/g, ""));
+  } catch { return null; }
+}
+
+/**
+ * The names a file defines that other files could be calling.
+ *
+ * Extracted with regexes rather than a model, deliberately. It is exact where a
+ * model would be approximate, it costs nothing, and — the reason that matters —
+ * it means "what else breaks" does not require shipping anyone's source code to
+ * a model provider. The rest of this feature already promises that.
+ */
+export function definedSymbols(path: string, text: string): string[] {
+  const out = new Set<string>();
+  const add = (n?: string) => { if (n && n.length > 2 && !RESERVED.has(n)) out.add(n); };
+
+  if (/\.(ts|tsx|js|jsx|mjs|cjs)$/i.test(path)) {
+    for (const m of text.matchAll(/export\s+(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/g)) add(m[1]);
+    for (const m of text.matchAll(/export\s+(?:const|let|var)\s+([A-Za-z_$][\w$]*)/g)) add(m[1]);
+    for (const m of text.matchAll(/export\s+(?:abstract\s+)?class\s+([A-Za-z_$][\w$]*)/g)) add(m[1]);
+    for (const m of text.matchAll(/export\s+(?:type|interface|enum)\s+([A-Za-z_$][\w$]*)/g)) add(m[1]);
+    for (const m of text.matchAll(/export\s*\{([^}]+)\}/g)) {
+      for (const part of m[1].split(",")) add(part.split(/\s+as\s+/)[0].trim());
+    }
+  } else if (/\.py$/i.test(path)) {
+    // Leading-underscore names are private by convention; skip them.
+    for (const m of text.matchAll(/^\s*(?:async\s+)?def\s+([A-Za-z][\w]*)/gm)) add(m[1]);
+    for (const m of text.matchAll(/^\s*class\s+([A-Za-z][\w]*)/gm)) add(m[1]);
+  } else if (/\.(go|rb|php|java|kt|rs)$/i.test(path)) {
+    for (const m of text.matchAll(/^\s*(?:public\s+|pub\s+)?(?:func|def|function|fn)\s+([A-Za-z_][\w]*)/gm)) add(m[1]);
+    for (const m of text.matchAll(/^\s*(?:public\s+)?class\s+([A-Za-z_][\w]*)/gm)) add(m[1]);
+  }
+  return [...out];
+}
+
+const RESERVED = new Set([
+  "default", "main", "index", "app", "page", "layout", "route", "config", "props",
+  "get", "post", "put", "patch", "delete", "handler", "init", "setup", "run", "test",
+  "GET", "POST", "PUT", "PATCH", "DELETE", "metadata", "generateMetadata",
+]);
+
+export type Reference = { path: string; hits: number };
+
+/**
+ * Which other files in the repository mention a name.
+ *
+ * GitHub's code search, which is exact and free, rather than reasoning about it.
+ * Search is rate-limited hard, so callers must keep the number of terms small.
+ */
+export async function findReferences(token: string, fullName: string, symbol: string): Promise<Reference[]> {
+  try {
+    const r = await gh<{ items: { path: string }[]; total_count: number }>(
+      token, `/search/code?q=${encodeURIComponent(`"${symbol}" repo:${fullName}`)}&per_page=20`,
+    );
+    const counts = new Map<string, number>();
+    for (const it of r.items ?? []) counts.set(it.path, (counts.get(it.path) ?? 0) + 1);
+    return [...counts].map(([path, hits]) => ({ path, hits }));
+  } catch { return []; }
+}

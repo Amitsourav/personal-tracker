@@ -1,11 +1,16 @@
 "use client";
 import { useState } from "react";
-import { Code2, ExternalLink, RefreshCw, ChevronDown, ChevronRight, CircleCheck, X } from "lucide-react";
+import { Code2, ExternalLink, RefreshCw, ChevronDown, ChevronRight, CircleCheck, X, Network, TriangleAlert } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useStore } from "@/lib/store";
 import type { Task } from "@/lib/types";
 
 type Commit = { path: string; message?: string | null; author?: string | null; at?: string | null };
+type Impact = {
+  groups: { file: string; symbols: string[]; refs: { path: string; symbols: string[] }[] }[];
+  total: number;
+  uncertain?: boolean;
+};
 type Hint = {
   repo: string | null;
   reason: string;
@@ -35,6 +40,8 @@ export function WhereToStart({ task }: { task: Task }) {
   const { completeTask, toast } = useStore();
   const [hint, setHint] = useState<Hint | null>(null);
   const [dismissed, setDismissed] = useState(false);
+  const [impact, setImpact] = useState<Impact | null>(null);
+  const [impactBusy, setImpactBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -49,6 +56,24 @@ export function WhereToStart({ task }: { task: Task }) {
     setBusy(false);
     if (!res.ok) { setErr(j.error ?? "Could not work it out"); return; }
     setHint(j); setOpen(true);
+    setImpact(j.impact ?? null);
+  };
+
+  /**
+   * What else uses the things this file defines.
+   *
+   * Asked for, never automatic: it costs several GitHub code searches, which are
+   * rate-limited hard, and most tasks never need it.
+   */
+  const askImpact = async () => {
+    setImpactBusy(true);
+    const res = await fetch("/api/github/impact", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ taskId: task.id }),
+    });
+    const j = await res.json();
+    setImpactBusy(false);
+    if (res.ok) setImpact(j.impact);
   };
 
   if (!hint && !err) {
@@ -163,6 +188,51 @@ export function WhereToStart({ task }: { task: Task }) {
                 </li>
               ))}
             </ul>
+          )}
+
+          {/* What else this touches. The question that costs a weekend. */}
+          {h.repo && !!h.files.length && (
+            impact ? (
+              <div className="rounded-lg bg-panel px-2.5 py-2 grid gap-1.5">
+                <div className="flex items-center gap-1.5 text-[11.5px]">
+                  <Network size={12} className={impact.total ? "text-warn" : "text-ink-3"} />
+                  <span className="font-semibold">
+                    {impact.uncertain
+                      ? "Could not check what else uses this"
+                      : impact.total
+                        ? `${impact.total} other file${impact.total === 1 ? "" : "s"} use${impact.total === 1 ? "s" : ""} this`
+                        : "Nothing else appears to use this"}
+                  </span>
+                </div>
+                {impact.uncertain && (
+                  <p className="text-[11px] text-ink-3 flex items-start gap-1">
+                    <TriangleAlert size={11} className="mt-0.5 flex-none" />
+                    GitHub code search returned nothing — it can lag behind a push. Treat this as unknown, not as safe.
+                  </p>
+                )}
+                {impact.groups.filter(g => g.refs.length).map(g => (
+                  <div key={g.file} className="grid gap-0.5">
+                    <div className="text-[11px] text-ink-3">
+                      Change <code className="font-mono">{g.file.split("/").pop()}</code> and you touch:
+                    </div>
+                    {g.refs.map(r => (
+                      <div key={r.path} className="flex items-baseline gap-1.5 min-w-0">
+                        <a className="text-[11.5px] font-mono text-ink truncate hover:text-accent"
+                          href={`https://github.com/${h.repo}/blob/HEAD/${r.path}`} target="_blank" rel="noreferrer">
+                          {r.path}
+                        </a>
+                        <span className="text-[10.5px] text-ink-3 flex-none">{r.symbols.join(", ")}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <button className="btn sm w-full justify-center" onClick={askImpact} disabled={impactBusy}>
+                <Network size={12} className={impactBusy ? "animate-pulse" : ""} />
+                {impactBusy ? "Checking what else uses this…" : "What else does this touch?"}
+              </button>
+            )
           )}
 
           <div className="flex items-center gap-2">
