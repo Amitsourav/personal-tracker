@@ -16,3 +16,9 @@ alter table public.task_code_hints
   -- Once dismissed it stays dismissed: a suggestion that returns after being
   -- rejected is how a panel trains people to ignore it.
   add column if not exists done_dismissed_at timestamptz;
+
+-- When the check last ran, so "checked and said no" is distinguishable from
+-- "never ran". Recording only the hits is how a dead cron looked healthy for a
+-- day earlier in this project.
+alter table public.task_code_hints
+  add column if not exists done_checked_at timestamptz;

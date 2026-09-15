@@ -152,17 +152,12 @@ Rules:
   // this task, the work is probably finished and the task is stale.
   const withCommits = (enriched as { path: string; message?: string | null; author?: string | null; at?: string | null }[])
     .filter(f => f.message);
-  let done: { maybe_done: boolean; done_commit: unknown; done_reason: string | null } =
-    { maybe_done: false, done_commit: null, done_reason: null };
+  let done: { maybe_done: boolean; done_commit: unknown; done_reason: string | null; done_checked_at: string | null } =
+    { maybe_done: false, done_commit: null, done_reason: null, done_checked_at: null };
 
   if (withCommits.length && task.status !== "done" && task.status !== "cancelled") {
-    done = await checkAlreadyDone(sec, task, withCommits);
-    if (done.maybe_done) {
-      await supabase.from("ai_usage").insert({
-        user_id: user.id, purpose: "already_done", model: sec.model_extract,
-        input_tokens: 0, output_tokens: 0, cost_usd: 0,
-      });
-    }
+    const res = await checkAlreadyDone(supabase, user.id, sec, task, withCommits);
+    done = { ...res, done_checked_at: new Date().toISOString() };
   }
 
   const row = {
@@ -192,6 +187,8 @@ Rules:
  * client saying it is done, which is a far worse failure than staying quiet.
  */
 async function checkAlreadyDone(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  uid: string,
   sec: { openrouter_key: string | null; model_extract: string },
   task: { title: string; description: string | null; source_quote: string | null; created_at: string },
   files: { path: string; message?: string | null; author?: string | null; at?: string | null }[],
@@ -238,10 +235,19 @@ Rules:
         model: sec.model_extract, temperature: 0,
         messages: [{ role: "system", content: system }, { role: "user", content: user }],
         response_format: { type: "json_schema", json_schema: { name: "already_done", strict: true, schema } },
+        usage: { include: true },
       }),
     });
-    if (!r.ok) return none;
+    if (!r.ok) { console.error("already_done check failed", r.status); return none; }
     const j = await r.json();
+    // Logged whether or not it found anything. Recording only the hits would
+    // make "checked and said no" indistinguishable from "never ran", which is
+    // precisely the blindness that made a dead cron look healthy for a day.
+    const u = j.usage ?? {};
+    await supabase.from("ai_usage").insert({
+      user_id: uid, purpose: "already_done", model: sec.model_extract,
+      input_tokens: u.prompt_tokens ?? 0, output_tokens: u.completion_tokens ?? 0, cost_usd: u.cost ?? 0,
+    });
     const out = JSON.parse((j.choices?.[0]?.message?.content ?? "{}").replace(/^```(?:json)?|```$/g, "").trim());
     if (!out.done) return none;
     const hit = files.find(f => f.path === out.path) ?? files[0];
