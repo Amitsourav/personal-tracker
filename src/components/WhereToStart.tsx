@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Code2, ExternalLink, RefreshCw, ChevronDown, ChevronRight, CircleCheck, X, Network, TriangleAlert, Stethoscope, Eye, Timer } from "lucide-react";
+import { Code2, ExternalLink, RefreshCw, ChevronDown, ChevronRight, CircleCheck, X, Network, TriangleAlert, Stethoscope, Eye, Timer, FileDiff, Copy, HelpCircle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useStore } from "@/lib/store";
 import type { Task } from "@/lib/types";
@@ -16,6 +16,11 @@ type Estimate = {
   low: number; high: number; suggest: number;
   drivers: string[]; confidence: number;
   measured: { path: string; lines: number; symbols: number; tested: boolean }[];
+};
+type Proposal = {
+  ready: boolean; missing: string[]; summary: string; patch: string;
+  how_to_check: string; risks: string[]; confidence: number;
+  files: { path: string; truncated: boolean }[];
 };
 type Impact = {
   groups: { file: string; symbols: string[]; refs: { path: string; symbols: string[] }[] }[];
@@ -55,6 +60,8 @@ export function WhereToStart({ task }: { task: Task }) {
   const [impactBusy, setImpactBusy] = useState(false);
   const [est, setEst] = useState<Estimate | null>(null);
   const [estBusy, setEstBusy] = useState(false);
+  const [prop, setProp] = useState<Proposal | null>(null);
+  const [propBusy, setPropBusy] = useState(false);
   const [diag, setDiag] = useState<Diagnosis | null>(null);
   const [diagBusy, setDiagBusy] = useState(false);
   const [diagErr, setDiagErr] = useState<string | null>(null);
@@ -75,6 +82,18 @@ export function WhereToStart({ task }: { task: Task }) {
     setImpact(j.impact ?? null);
     setDiag(j.diagnosis ?? null);
     setEst(j.estimate ?? null);
+    setProp(j.proposal ?? null);
+  };
+
+  const propose = async () => {
+    setPropBusy(true);
+    const res = await fetch("/api/github/propose", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ taskId: task.id }),
+    });
+    const j = await res.json();
+    setPropBusy(false);
+    if (res.ok) setProp(j.proposal);
   };
 
   const estimate = async () => {
@@ -361,6 +380,76 @@ export function WhereToStart({ task }: { task: Task }) {
               <button className="btn sm w-full justify-center" onClick={askImpact} disabled={impactBusy}>
                 <Network size={12} className={impactBusy ? "animate-pulse" : ""} />
                 {impactBusy ? "Checking what else uses this…" : "What else does this touch?"}
+              </button>
+            )
+          )}
+
+          {/* The first draft of the change. Last, because a confident wrong
+              patch costs more to review than no patch at all. */}
+          {h.repo && !!h.files.length && (
+            prop ? (
+              prop.ready ? (
+                <div className="rounded-lg bg-panel px-2.5 py-2.5 grid gap-2">
+                  <div className="flex items-center gap-1.5 text-[11.5px]">
+                    <FileDiff size={12} className="text-accent" />
+                    <span className="font-semibold">A first draft</span>
+                    <span className={`ml-auto ${prop.confidence >= 0.6 ? "text-ok" : "text-warn"}`}>
+                      {prop.confidence >= 0.6 ? "Worth reading" : "Read it carefully"}
+                    </span>
+                  </div>
+                  <p className="text-[12.5px] text-ink leading-relaxed">{prop.summary}</p>
+
+                  <pre className="bg-panel-2 rounded-lg p-2.5 text-[10.5px] font-mono leading-[1.5] overflow-x-auto max-h-[320px] overflow-y-auto">
+                    {prop.patch.split("\n").map((l, i) => (
+                      <div key={i} className={
+                        l.startsWith("+++") || l.startsWith("---") ? "text-ink-3"
+                        : l.startsWith("@@") ? "text-accent"
+                        : l.startsWith("+") ? "text-ok"
+                        : l.startsWith("-") ? "text-danger" : "text-ink-2"
+                      }>{l || " "}</div>
+                    ))}
+                  </pre>
+
+                  <div className="grid gap-1 text-[11.5px]">
+                    <div><span className="text-ink-3">How to check — </span><span className="text-ink-2">{prop.how_to_check}</span></div>
+                    {prop.risks.map((r, i) => (
+                      <div key={i} className="flex items-start gap-1 text-warn">
+                        <TriangleAlert size={11} className="mt-0.5 flex-none" /><span>{r}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <button className="btn sm" onClick={async () => {
+                      try { await navigator.clipboard.writeText(prop.patch); toast("Patch copied — git apply"); }
+                      catch { toast("Could not copy"); }
+                    }}><Copy size={12} /> Copy patch</button>
+                    <button className="btn ghost sm px-2 text-[11.5px]" onClick={() => setProp(null)}><X size={12} /> Discard</button>
+                    <span className="text-[10.5px] text-ink-3">
+                      Nothing was pushed. Save it as a file and <code className="font-mono">git apply</code>.
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-lg bg-panel px-2.5 py-2.5 grid gap-1.5">
+                  <div className="flex items-center gap-1.5 text-[11.5px]">
+                    <HelpCircle size={12} className="text-warn" />
+                    <span className="font-semibold">Not enough to go on</span>
+                    <button className="btn ghost sm px-2 ml-auto text-[11px]" onClick={() => setProp(null)}>Hide</button>
+                  </div>
+                  <p className="text-[11.5px] text-ink-2">It would need to know:</p>
+                  <ul className="text-[11.5px] text-ink-2 grid gap-0.5">
+                    {prop.missing.map((m, i) => <li key={i}>· {m}</li>)}
+                  </ul>
+                  <p className="text-[10.5px] text-ink-3">
+                    Refusing is usually the right answer. A confident wrong patch costs more to read than none.
+                  </p>
+                </div>
+              )
+            ) : (
+              <button className="btn sm w-full justify-center" onClick={propose} disabled={propBusy}>
+                <FileDiff size={12} className={propBusy ? "animate-pulse" : ""} />
+                {propBusy ? "Writing a first draft…" : "Draft the change"}
               </button>
             )
           )}
