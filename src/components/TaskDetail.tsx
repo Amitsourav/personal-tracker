@@ -10,6 +10,7 @@ import { TaskContext } from "./TaskContext";
 import { DoWithAI } from "./DoWithAI";
 import { Why } from "./Why";
 import { WhereToStart } from "./WhereToStart";
+import { StartFocus } from "./Focus";
 import { formatDistanceToNow, format } from "date-fns";
 import clsx from "clsx";
 
@@ -74,6 +75,7 @@ export function TaskDetail() {
 
           <Why task={task} />
           <WhereToStart task={task} />
+          <StartFocus task={task} />
 
           <DoWithAI task={task} />
 

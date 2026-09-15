@@ -7,6 +7,7 @@ import { TaskDetail } from "./TaskDetail";
 import { QuickAdd } from "./QuickAdd";
 import { CommandBar } from "./CommandBar";
 import { Toasts } from "./Toasts";
+import { Focus } from "./Focus";
 import { Menu } from "lucide-react";
 import clsx from "clsx";
 
@@ -70,6 +71,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       <QuickAdd />
       <CommandBar />
       <Toasts />
+      <Focus />
     </div>
   );
 }

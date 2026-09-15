@@ -21,11 +21,15 @@ interface State {
   toasts: Toast[];
   cmdOpen: boolean;
   quickAddOpen: boolean;
+  /** An hour with the door shut. Null when the door is open. */
+  focus: { taskId: string; startedAt: number; plannedMin: number; sessionId: string | null } | null;
   load: () => Promise<void>;
   select: (id: string | null) => void;
   setFocus: (id: string | null) => void;
   setCmdOpen: (v: boolean) => void;
   setQuickAddOpen: (v: boolean) => void;
+  startFocus: (taskId: string, plannedMin: number) => Promise<void>;
+  endFocus: () => Promise<{ minutes: number; arrived: number } | null>;
   toast: (text: string, undo?: () => void) => void;
   dismissToast: (id: number) => void;
   addTask: (t: Partial<Task> & { title: string }, tagIds?: string[]) => Promise<Task | null>;
@@ -49,7 +53,7 @@ const sb = () => createClient();
 
 export const useStore = create<State>((set, get) => ({
   ready: false, userId: null, profile: null, tasks: [], projects: [], tags: [], people: [], taskTags: [], views: [],
-  selectedId: null, focusId: null, toasts: [], cmdOpen: false, quickAddOpen: false,
+  selectedId: null, focusId: null, toasts: [], cmdOpen: false, quickAddOpen: false, focus: null,
 
   async load() {
     const s = sb();
@@ -97,7 +101,46 @@ export const useStore = create<State>((set, get) => ({
   setFocus: (id) => set({ focusId: id }),
   setCmdOpen: (v) => set({ cmdOpen: v }),
   setQuickAddOpen: (v) => set({ quickAddOpen: v }),
+  /**
+   * A focus session, recorded from the start.
+   *
+   * The row is written when the session begins rather than when it ends, so a
+   * session abandoned by closing the tab still leaves a trace. A timer that only
+   * counts the hours you finished neatly flatters you.
+   */
+  async startFocus(taskId, plannedMin) {
+    const userId = get().userId;
+    const t = get().tasks.find(x => x.id === taskId);
+    set({ focus: { taskId, startedAt: Date.now(), plannedMin, sessionId: null }, selectedId: null });
+    if (!userId) return;
+    const { data } = await sb().from("focus_sessions").insert({
+      user_id: userId, task_id: taskId, planned_min: plannedMin,
+      estimated_min: t?.duration_min ?? null,
+    }).select("id").single();
+    if (data) set(s => (s.focus ? { focus: { ...s.focus, sessionId: data.id } } : {}));
+  },
+
+  async endFocus() {
+    const f = get().focus;
+    if (!f) return null;
+    const minutes = Math.max(1, Math.round((Date.now() - f.startedAt) / 60_000));
+    // What was captured while the door was shut. Counted on the way out, which
+    // is the whole point: it arrived, it waited, it did not interrupt.
+    const arrived = get().tasks.filter(t =>
+      t.review_state === "suggested" && !t.deleted_at && new Date(t.created_at).getTime() >= f.startedAt).length;
+    set({ focus: null });
+    if (f.sessionId) {
+      await sb().from("focus_sessions").update({
+        ended_at: new Date().toISOString(), actual_min: minutes, arrived,
+      }).eq("id", f.sessionId);
+    }
+    return { minutes, arrived };
+  },
+
   toast(text, undo) {
+    // While the door is shut, only something with an undo gets through — those
+    // are confirmations of what he just did, not news from outside.
+    if (get().focus && !undo) return;
     const id = toastSeq++;
     set(s => ({ toasts: [...s.toasts, { id, text, undo }] }));
     setTimeout(() => get().dismissToast(id), undo ? 6000 : 3000);
