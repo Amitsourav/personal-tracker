@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { lastCommit } from "@/lib/github";
+import { fileCommits, type Commit } from "@/lib/github";
 
 /**
  * Where in the code does this task live?
@@ -141,17 +141,23 @@ Rules:
 
   // Who touched each file last — the context that turns a path into a lead.
   const { data: gh } = await supabase.from("user_secrets").select("github_token").maybeSingle();
-  const enriched = gh?.github_token && chosen
-    ? await Promise.all(files.map(async f => ({ ...f, ...(await lastCommit(gh.github_token!, chosen.full_name, f.path) ?? {}) })))
-    : files;
+  // Several commits per file, not one. The newest is what the panel shows; the
+  // rest are what makes "already done" work on a file that has been touched
+  // since the fix — which is most files worth looking at.
+  const enriched: (typeof files[number] & { history?: Commit[]; message?: string | null; author?: string | null; at?: string | null })[] =
+    gh?.github_token && chosen
+      ? await Promise.all(files.map(async f => {
+          const history = await fileCommits(gh.github_token!, chosen.full_name, f.path, 5);
+          return { ...f, history, ...(history[0] ?? {}) };
+        }))
+      : files;
 
   // Already done?
   //
   // The commits were fetched to give each file some context; they turn out to
   // answer a better question. If the last change to one of these files describes
   // this task, the work is probably finished and the task is stale.
-  const withCommits = (enriched as { path: string; message?: string | null; author?: string | null; at?: string | null }[])
-    .filter(f => f.message);
+  const withCommits = enriched.filter(f => (f.history?.length ?? 0) > 0);
   let done: { maybe_done: boolean; done_commit: unknown; done_reason: string | null; done_checked_at: string | null } =
     { maybe_done: false, done_commit: null, done_reason: null, done_checked_at: null };
 
@@ -191,16 +197,17 @@ async function checkAlreadyDone(
   uid: string,
   sec: { openrouter_key: string | null; model_extract: string },
   task: { title: string; description: string | null; source_quote: string | null; created_at: string },
-  files: { path: string; message?: string | null; author?: string | null; at?: string | null }[],
+  files: { path: string; history?: Commit[] }[],
 ) {
   const none = { maybe_done: false, done_commit: null, done_reason: null };
   const system = `You are told a task and the most recent commit touching each file that task points at. Decide whether one of those commits IS the task, already done. Reply ONLY with JSON matching the schema.
 
 Rules:
+- You are given the last few commits on each file, newest first. The fix may not be the most recent one — files get worked in again. Read all of them.
 - Say done ONLY when a commit plainly describes this same piece of work. A commit that merely touches the same area is not enough.
 - A commit made AFTER the task was created is much stronger evidence than one made before. A commit from before it was asked for is usually unrelated work in the same file.
 - Commit messages are terse and use conventional-commit prefixes. "feat(leads): a lead cannot leave \"created\" without a loan amount" IS the task "Make amount mandatory when moving lead stage".
-- If several fit, choose the one that describes it best.
+- If several fit, choose the one that describes it best. Return its exact commit message in "commit" and its file in "path".
 - Be strict. Telling him something is finished when it is not means he tells a client it is done. Staying quiet costs him a tick.
 - reason: one short sentence naming what matched, addressed to him.`;
 
@@ -210,8 +217,11 @@ Rules:
     task.source_quote ? `ASKED FOR AS: “${task.source_quote}”` : "",
     `TASK CREATED: ${task.created_at}`,
     "",
-    "LAST COMMIT ON EACH FILE:",
-    ...files.map(f => `- ${f.path} — “${f.message}” (${f.author ?? "unknown"}, ${f.at ?? "no date"})`),
+    "RECENT COMMITS ON EACH FILE (newest first):",
+    ...files.flatMap(f => [
+      `${f.path}:`,
+      ...(f.history ?? []).map(c => `   • “${c.message}” (${c.author ?? "unknown"}, ${c.at ?? "no date"})`),
+    ]),
   ].filter(Boolean).join("\n");
 
   const schema = {
@@ -219,9 +229,10 @@ Rules:
     properties: {
       done: { type: "boolean" },
       path: { type: ["string", "null"] },
+      commit: { type: ["string", "null"] },
       reason: { type: "string" },
     },
-    required: ["done", "path", "reason"],
+    required: ["done", "path", "commit", "reason"],
   };
 
   try {
@@ -251,6 +262,11 @@ Rules:
     const out = JSON.parse((j.choices?.[0]?.message?.content ?? "{}").replace(/^```(?:json)?|```$/g, "").trim());
     if (!out.done) return none;
     const hit = files.find(f => f.path === out.path) ?? files[0];
-    return { maybe_done: true, done_commit: hit, done_reason: out.reason ?? null };
+    const c = (hit.history ?? []).find(x => x.message === out.commit) ?? hit.history?.[0];
+    return {
+      maybe_done: true,
+      done_commit: { path: hit.path, message: c?.message ?? null, author: c?.author ?? null, at: c?.at ?? null },
+      done_reason: out.reason ?? null,
+    };
   } catch { return none; }
 }

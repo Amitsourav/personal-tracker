@@ -70,18 +70,25 @@ export async function readme(token: string, fullName: string): Promise<string | 
   } catch { return null; }
 }
 
-/** Who last touched a file, and when — the context that turns a path into a lead. */
-export async function lastCommit(token: string, fullName: string, path: string) {
+export type Commit = { message: string; author: string | null; at: string | null };
+
+/**
+ * The recent history of one file, newest first.
+ *
+ * Several, not one. Asking only for the latest commit means a fix stops counting
+ * as evidence the moment anyone touches the file again — which is backwards,
+ * because the files that matter are the ones worked in most. The loan-amount fix
+ * was invisible within three days for exactly this reason.
+ */
+export async function fileCommits(token: string, fullName: string, path: string, n = 5): Promise<Commit[]> {
   try {
     const c = await gh<{ commit: { message: string; author: { name: string; date: string } } }[]>(
-      token, `/repos/${fullName}/commits?path=${encodeURIComponent(path)}&per_page=1`,
+      token, `/repos/${fullName}/commits?path=${encodeURIComponent(path)}&per_page=${n}`,
     );
-    const top = c?.[0];
-    if (!top) return null;
-    return {
-      message: top.commit.message.split("\n")[0].slice(0, 120),
-      author: top.commit.author?.name ?? null,
-      at: top.commit.author?.date ?? null,
-    };
-  } catch { return null; }
+    return (c ?? []).map(x => ({
+      message: x.commit.message.split("\n")[0].slice(0, 120),
+      author: x.commit.author?.name ?? null,
+      at: x.commit.author?.date ?? null,
+    }));
+  } catch { return []; }
 }
