@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Code2, ExternalLink, RefreshCw, ChevronDown, ChevronRight, CircleCheck, X, Network, TriangleAlert, Stethoscope, Eye } from "lucide-react";
+import { Code2, ExternalLink, RefreshCw, ChevronDown, ChevronRight, CircleCheck, X, Network, TriangleAlert, Stethoscope, Eye, Timer } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useStore } from "@/lib/store";
 import type { Task } from "@/lib/types";
@@ -11,6 +11,11 @@ type Diagnosis = {
   confidence: number;
   where: { path: string; symbol: string; why: string }[];
   read: { path: string; truncated: boolean }[];
+};
+type Estimate = {
+  low: number; high: number; suggest: number;
+  drivers: string[]; confidence: number;
+  measured: { path: string; lines: number; symbols: number; tested: boolean }[];
 };
 type Impact = {
   groups: { file: string; symbols: string[]; refs: { path: string; symbols: string[] }[] }[];
@@ -43,11 +48,13 @@ type Hint = {
  * files, and a confident wrong answer costs him more than an uncertain right one.
  */
 export function WhereToStart({ task }: { task: Task }) {
-  const { completeTask, toast } = useStore();
+  const { completeTask, updateTask, toast } = useStore();
   const [hint, setHint] = useState<Hint | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const [impact, setImpact] = useState<Impact | null>(null);
   const [impactBusy, setImpactBusy] = useState(false);
+  const [est, setEst] = useState<Estimate | null>(null);
+  const [estBusy, setEstBusy] = useState(false);
   const [diag, setDiag] = useState<Diagnosis | null>(null);
   const [diagBusy, setDiagBusy] = useState(false);
   const [diagErr, setDiagErr] = useState<string | null>(null);
@@ -67,7 +74,21 @@ export function WhereToStart({ task }: { task: Task }) {
     setHint(j); setOpen(true);
     setImpact(j.impact ?? null);
     setDiag(j.diagnosis ?? null);
+    setEst(j.estimate ?? null);
   };
+
+  const estimate = async () => {
+    setEstBusy(true);
+    const res = await fetch("/api/github/estimate", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ taskId: task.id }),
+    });
+    const j = await res.json();
+    setEstBusy(false);
+    if (res.ok) setEst(j.estimate);
+  };
+
+  const mins = (n: number) => n < 60 ? `${n} min` : n % 60 === 0 ? `${n / 60} hr` : `${Math.floor(n / 60)}h ${n % 60}m`;
 
   /**
    * The only button here that sends source code anywhere, which is why it is a
@@ -214,6 +235,35 @@ export function WhereToStart({ task }: { task: Task }) {
                 </li>
               ))}
             </ul>
+          )}
+
+          {/* How long it will take, so the planner stops guessing thirty minutes. */}
+          {h.repo && !!h.files.length && (
+            est ? (
+              <div className="rounded-lg bg-panel px-2.5 py-2 grid gap-1.5">
+                <div className="flex items-center gap-1.5 text-[11.5px] flex-wrap">
+                  <Timer size={12} className="text-accent" />
+                  <span className="font-semibold">{mins(est.low)} – {mins(est.high)}</span>
+                  <span className="text-ink-3">at the keyboard</span>
+                  {task.duration_min !== est.suggest && (
+                    <button className="btn ghost sm px-2 ml-auto text-[11px]"
+                      onClick={() => { updateTask(task.id, { duration_min: est.suggest }); toast(`Planner will allow ${mins(est.suggest)}`); }}>
+                      Use {mins(est.suggest)}
+                    </button>
+                  )}
+                </div>
+                {!!est.drivers.length && (
+                  <ul className="text-[11px] text-ink-3 grid gap-0.5">
+                    {est.drivers.map((d, i) => <li key={i}>· {d}</li>)}
+                  </ul>
+                )}
+              </div>
+            ) : (
+              <button className="btn sm w-full justify-center" onClick={estimate} disabled={estBusy}>
+                <Timer size={12} className={estBusy ? "animate-pulse" : ""} />
+                {estBusy ? "Measuring the files…" : "How long will this take?"}
+              </button>
+            )
           )}
 
           {/* Symptom to cause. */}
