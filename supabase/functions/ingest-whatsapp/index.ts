@@ -145,8 +145,16 @@ async function run(db: SupabaseClient, uid: string, body: Body) {
   let created = 0;
   const errors: string[] = [];
 
+  // His own messages are classified by the promise pass rather than the task
+  // pass — one call either way, and it is the prompt that already reads them.
+  // Without this, a group where Amit is the only one talking produced no
+  // signals at all: every message went down the promise path and out the other
+  // side unclassified.
+  let mineIntake = new Map<string, { type: string; summary: string }>();
+
   if (mine.length) {
     const pout = await extractPromises(db, uid, sec, profile, groupName, mine, (openRows ?? []) as OpenTask[]);
+    mineIntake = new Map((pout?.intake ?? []).map(i => [i.message_id, i]));
     for (const p of pout?.promises ?? []) {
       // Stricter than task capture: putting a promise in Amit's mouth that he
       // did not make is worse than missing one.
@@ -168,8 +176,7 @@ async function run(db: SupabaseClient, uid: string, body: Body) {
   }
 
   if (!theirs.length) {
-    await db.from("messages").update({ processed_at: new Date().toISOString() })
-      .eq("user_id", uid).eq("channel", "whatsapp").in("external_id", candidates.map(m => m.id));
+    await saveIntake(db, uid, mine, mineIntake);
     return finish({ fetched: incoming.length, candidates: candidates.length, created_tasks: created, transcribed,
       error: errors.length ? `${errors.length} insert(s) failed: ${errors[0]}`.slice(0, 500) : null });
   }
@@ -218,17 +225,10 @@ async function run(db: SupabaseClient, uid: string, body: Body) {
     if (row) created++;
   }
 
-  // Store each message's own classification. Noise is marked seen immediately:
-  // it is kept for auditing what was filtered, but never shown.
-  const byId = new Map((out.intake ?? []).map(i => [i.message_id, i]));
-  for (const m of candidates) {
-    const cls = byId.get(m.id);
-    await db.from("messages").update({
-      processed_at: new Date().toISOString(), extraction: out,
-      intake_type: cls?.type ?? null, intake_summary: cls?.summary ?? null,
-      intake_seen_at: !cls || cls.type === "noise" || cls.type === "task" ? new Date().toISOString() : null,
-    }).eq("user_id", uid).eq("channel", "whatsapp").eq("external_id", m.id);
-  }
+  // Each message's own classification: theirs from the task pass, his from the
+  // promise pass.
+  await saveIntake(db, uid, theirs, new Map((out.intake ?? []).map(i => [i.message_id, i])), out);
+  await saveIntake(db, uid, mine, mineIntake);
 
   return finish({
     fetched: incoming.length, candidates: candidates.length, created_tasks: created, transcribed,
@@ -237,6 +237,30 @@ async function run(db: SupabaseClient, uid: string, body: Body) {
 }
 
 // ---------- helpers
+/**
+ * Write each message's classification.
+ *
+ * Noise and tasks are marked seen on the way in — a task already has its own
+ * place to live, and noise is kept only so it stays auditable what the filter
+ * threw away.
+ */
+async function saveIntake(
+  db: SupabaseClient, uid: string, msgs: Incoming[],
+  byId: Map<string, { type: string; summary: string }>,
+  extraction?: unknown,
+) {
+  const now = new Date().toISOString();
+  for (const m of msgs) {
+    const cls = byId.get(m.id);
+    await db.from("messages").update({
+      processed_at: now,
+      ...(extraction ? { extraction } : {}),
+      intake_type: cls?.type ?? null, intake_summary: cls?.summary ?? null,
+      intake_seen_at: !cls || cls.type === "noise" || cls.type === "task" ? now : null,
+    }).eq("user_id", uid).eq("channel", "whatsapp").eq("external_id", m.id);
+  }
+}
+
 /** Compare phone numbers ignoring +, spaces and a missing country code. */
 function same(a: string, b: string) {
   const n = (x: string) => x.replace(/\D/g, "").replace(/^0+/, "");
@@ -461,7 +485,19 @@ Rules:
 - Priority: 1 if I said today or urgent, 2 if within 2 days, 3 otherwise, 4 for low-stakes.
 - If it matches something in ALREADY TRACKED, skip it.
 - message_id: the message it came from. title: short imperative naming what I owe, <= 12 words, English. quote: my exact promising sentence (<= 200 chars).
-- confidence 0-1. Be strict: below 0.5 unless it is unmistakably a commitment I have not yet fulfilled.`;
+- confidence 0-1. Be strict: below 0.5 unless it is unmistakably a commitment I have not yet fulfilled.
+
+ALSO classify EVERY message above into exactly one type, including the ones that are not promises:
+- "commitment" — I promised something; somebody is waiting on me.
+- "decision" — I made or announced a choice.
+- "request" — I asked somebody else for something.
+- "information" — I stated a fact, a number or a status worth remembering.
+- "event" — I reported something that happened or is scheduled.
+- "risk" — I flagged something that could go wrong.
+- "opportunity" — I flagged a possible upside.
+- "task" — I gave myself something to do.
+- "noise" — acknowledgements, pleasantries, small talk. Most of what anyone types.
+summary: one line in plain English, under 15 words, written from my point of view.`;
 
   const transcript = msgs.map(m => {
     const when = new Date(m.timestamp * 1000).toLocaleString("en-IN", { timeZone: tz, weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -490,8 +526,20 @@ Rules:
           required: ["message_id", "title", "details", "due_raw", "due_iso", "due_has_time", "priority", "quote", "confidence"],
         },
       },
+      intake: {
+        type: "array",
+        items: {
+          type: "object", additionalProperties: false,
+          properties: {
+            message_id: { type: "string" },
+            type: { type: "string", enum: ["task", "commitment", "request", "decision", "event", "risk", "opportunity", "information", "noise"] },
+            summary: { type: "string" },
+          },
+          required: ["message_id", "type", "summary"],
+        },
+      },
     },
-    required: ["reason", "promises"],
+    required: ["reason", "promises", "intake"],
   };
 
   const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -516,6 +564,7 @@ Rules:
     return JSON.parse((j.choices?.[0]?.message?.content ?? "{}").replace(/^```(?:json)?|```$/g, "").trim()) as {
       reason: string;
       promises: { message_id: string; title: string; details: string; due_raw: string | null; due_iso: string | null; due_has_time: boolean; priority: 1 | 2 | 3 | 4; quote: string; confidence: number }[];
+      intake?: { message_id: string; type: string; summary: string }[];
     };
   } catch { return null; }
 }
