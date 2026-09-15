@@ -13,13 +13,13 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: "not signed in" }, { status: 401 });
 
   const { taskId, kind } = await request.json().catch(() => ({}));
-  if (!taskId || (kind !== "chaser" && kind !== "ack")) {
-    return NextResponse.json({ error: "taskId and kind ('chaser' | 'ack') are required" }, { status: 400 });
+  if (!taskId || (kind !== "chaser" && kind !== "ack" && kind !== "done")) {
+    return NextResponse.json({ error: "taskId and kind ('chaser' | 'ack' | 'done') are required" }, { status: 400 });
   }
 
   // RLS scopes all of these to the signed-in user.
   const [{ data: task }, { data: secrets }, { data: profile }, { data: spend }] = await Promise.all([
-    supabase.from("tasks").select("*").eq("id", taskId).is("deleted_at", null).maybeSingle(),
+    supabase.from("tasks").select("*").eq("id", taskId).is("deleted_at", null).maybeSingle(),  // includes completed_at
     supabase.from("user_secrets").select("openrouter_key, model_plan, monthly_cap_usd").maybeSingle(),
     supabase.from("profiles").select("display_name, timezone, eod_time").maybeSingle(),
     supabase.rpc("month_spend", { uid: user.id }),
@@ -31,6 +31,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: `Monthly AI cap of $${secrets.monthly_cap_usd} reached` }, { status: 400 });
   }
 
+  // "done" and "ack" both address whoever asked; only a chase addresses whoever owes.
   const personId = kind === "chaser" ? task.waiting_on_person_id : task.person_id;
   const { data: person } = personId
     ? await supabase.from("people").select("name, emails, phones, company, role").eq("id", personId).maybeSingle()
@@ -54,7 +55,23 @@ Style:
 - Never apologise for chasing, never grovel, never threaten. Do not invent facts, dates or excuses that are not given below.
 - Reference the specific thing by name so it is obvious what is meant.`;
 
-  const prompt = kind === "chaser"
+  const completed = task.completed_at
+    ? new Date(task.completed_at).toLocaleString("en-IN", { timeZone: tz, weekday: "long", day: "numeric", month: "short" })
+    : null;
+
+  /**
+   * "It's done."
+   *
+   * The one message nobody sends, which is why people chase work that was
+   * finished last week. Deliberately plain: it says what was asked for is now
+   * done and stops. No summary of the effort, no invitation to review, nothing
+   * that reads as fishing for thanks.
+   */
+  const donePrompt = `Tell ${person?.name ?? "them"} that something they asked me for is now done.
+Thing: ${task.title}
+${task.description ? `Detail: ${task.description}\n` : ""}${task.source_quote ? `What they originally asked: "${task.source_quote}"\n` : ""}${completed ? `Finished: ${completed}\n` : ""}State plainly that it is done and live. Name the thing so it is obvious which request this answers. Do not describe how it was done, do not ask for feedback, do not apologise for the time taken. One or two lines.`;
+
+  const prompt = kind === "done" ? donePrompt : kind === "chaser"
     ? `Chase ${person?.name ?? "them"} about something they owe me. Be gentle: this is a nudge, not a complaint.
 Thing I am waiting on: ${task.title}
 ${task.description ? `Detail: ${task.description}\n` : ""}${task.source_quote ? `What they originally said: "${task.source_quote}"\n` : ""}${due ? `They said: ${due}\n` : ""}Waiting: ${days} day(s)

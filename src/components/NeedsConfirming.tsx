@@ -5,7 +5,7 @@ import { useStore } from "@/lib/store";
 import { createClient } from "@/lib/supabase/client";
 import { Avatar } from "@/components/ui";
 import { formatDistanceToNow } from "date-fns";
-import { CircleCheck, ShieldQuestion } from "lucide-react";
+import { CircleCheck, ShieldQuestion, Send, Copy, X } from "lucide-react";
 import type { Task } from "@/lib/types";
 
 /**
@@ -22,6 +22,10 @@ import type { Task } from "@/lib/types";
 export function NeedsConfirming() {
   const { tasks, people, updateTask, toast } = useStore();
   const [repliedSince, setRepliedSince] = useState<Record<string, string>>({});
+  // Drafting "it's done" is the step that closes the loop, and the one nobody
+  // does — which is why people chase work that was finished last week.
+  const [draft, setDraft] = useState<{ id: string; text: string; channel: string } | null>(null);
+  const [drafting, setDrafting] = useState<string | null>(null);
 
   const pending = tasks.filter(t =>
     t.verification === "self" && t.status === "done" && !t.deleted_at && t.person_id);
@@ -55,6 +59,18 @@ export function NeedsConfirming() {
       verification_note: "Confirmed by you",
     });
     toast("Confirmed — they have it");
+  };
+
+  const tellThem = async (t: Task) => {
+    setDrafting(t.id);
+    const res = await fetch("/api/ai/draft", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ taskId: t.id, kind: "done" }),
+    });
+    const j = await res.json();
+    setDrafting(null);
+    if (!res.ok) return toast(j.error ?? "Could not write it");
+    setDraft({ id: t.id, text: j.text, channel: j.channel });
   };
 
   const reopen = async (t: Task) => {
@@ -92,6 +108,10 @@ export function NeedsConfirming() {
                 </div>
               </div>
               <div className="flex items-center gap-1 shrink-0">
+                <button className="btn sm" onClick={() => tellThem(t)} disabled={drafting === t.id}
+                  title="Write them a message saying it is done">
+                  <Send size={12} /> {drafting === t.id ? "Writing…" : "Tell them"}
+                </button>
                 <button className="btn sm" onClick={() => confirm(t)} title="They have it — close this out">
                   <CircleCheck size={12} /> Confirm
                 </button>
@@ -103,6 +123,28 @@ export function NeedsConfirming() {
           );
         })}
       </div>
+
+      {draft && (() => {
+        const t = pending.find(x => x.id === draft.id);
+        return (
+          <div className="rounded-xl bg-panel-2 p-3 grid gap-2">
+            <div className="text-[11.5px] text-ink-3">
+              {draft.channel === "whatsapp" ? "WhatsApp" : "Email"} to {people.find(p => p.id === t?.person_id)?.name ?? "them"} — check it, then send it yourself
+            </div>
+            <textarea className="field h-auto py-2 text-[12.5px] leading-relaxed" rows={3}
+              value={draft.text} onChange={e => setDraft({ ...draft, text: e.target.value })} />
+            <div className="flex items-center gap-1.5">
+              <button className="btn sm" onClick={async () => {
+                try { await navigator.clipboard.writeText(draft.text); toast("Copied — send it, then Confirm"); }
+                catch { toast("Could not copy"); }
+              }}><Copy size={12} /> Copy</button>
+              {/* Confirming here would record that they received it, which pressing
+                  Copy does not establish. It stays a separate, deliberate act. */}
+              <button className="btn ghost sm text-[11.5px]" onClick={() => setDraft(null)}><X size={12} /> Close</button>
+            </div>
+          </div>
+        );
+      })()}
     </section>
   );
 }

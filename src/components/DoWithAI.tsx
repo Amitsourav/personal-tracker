@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useStore } from "@/lib/store";
-import { Sparkles, RefreshCw, Copy, FileDown } from "lucide-react";
+import { Sparkles, RefreshCw, Copy, FileDown, Handshake, Plus, X } from "lucide-react";
 import type { Task } from "@/lib/types";
 
 type Kind = "draft" | "summary" | "outline";
@@ -14,8 +14,14 @@ const LABEL: Record<Kind, string> = { draft: "Draft the reply", summary: "Summar
  * when asked — the same rule the rest of the app follows for anything the AI
  * produces in the user's name.
  */
+type Promise_ = { title: string; quote: string; due_iso: string | null };
+
 export function DoWithAI({ task }: { task: Task }) {
-  const { updateTask, toast } = useStore();
+  const { updateTask, addTask, toast } = useStore();
+  // What the draft just committed him to. The tracker catches promises he types
+  // himself; it did not catch the ones it wrote for him, which is a system
+  // manufacturing obligations and then forgetting them.
+  const [promises, setPromises] = useState<Promise_[] | null>(null);
   const [text, setText] = useState("");
   const [kind, setKind] = useState<Kind | null>(null);
   const [loading, setLoading] = useState<Kind | null>(null);
@@ -32,6 +38,17 @@ export function DoWithAI({ task }: { task: Task }) {
     setLoading(null);
     if (!r.ok) { setError(j.error ?? `Failed (${r.status})`); return; }
     setText(j.text); setKind(k); setNoContext(!j.had_context);
+    setPromises(null);
+    // Only a reply can commit him to anything; a summary or a checklist cannot.
+    if (k === "draft" && j.text) {
+      fetch("/api/ai/promises-in-draft", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: j.text, taskId: task.id }),
+      })
+        .then(res => res.json())
+        .then(p => setPromises(p.promises ?? []))
+        .catch(() => setPromises([]));
+    }
   }
 
   return (
@@ -77,6 +94,45 @@ export function DoWithAI({ task }: { task: Task }) {
           <div className="text-[11px] text-ink-3">
             Written from your own messages only — it has no internet access, so check anything factual.
           </div>
+
+          {!!promises?.length && (
+            <div className="rounded-lg border border-warn/40 bg-panel-2 px-3 py-2.5 grid gap-2">
+              <div className="flex items-start gap-2 text-[12.5px]">
+                <Handshake size={13} className="text-warn mt-0.5 flex-none" />
+                <div>
+                  <div className="font-semibold">Sending this promises something</div>
+                  <div className="text-ink-3 text-[11.5px] mt-0.5">
+                    Beyond this task. Add it, or it is a thing you owe that nobody is tracking.
+                  </div>
+                </div>
+              </div>
+              {promises.map((p, i) => (
+                <div key={i} className="grid gap-1">
+                  <div className="text-[12.5px]">{p.title}</div>
+                  <div className="text-[11.5px] text-ink-3 italic">“{p.quote}”</div>
+                  <div className="flex gap-1.5">
+                    <button className="btn sm" onClick={async () => {
+                      await addTask({
+                        title: p.title.slice(0, 200),
+                        status: "todo", priority: 2,
+                        due_at: p.due_iso || null,
+                        person_id: task.person_id,
+                        source_kind: "manual",
+                        source_quote: p.quote?.slice(0, 300) ?? null,
+                        ai_meta: { kind: "promise", from: "drafted reply", task: task.title },
+                      });
+                      setPromises(ps => (ps ?? []).filter((_, j) => j !== i));
+                      toast("Added — you owe this now");
+                    }}><Plus size={12} /> Add it</button>
+                    <button className="btn ghost sm text-[11.5px]"
+                      onClick={() => setPromises(ps => (ps ?? []).filter((_, j) => j !== i))}>
+                      <X size={12} /> Not a promise
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
