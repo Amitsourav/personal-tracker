@@ -4,27 +4,43 @@ import { useStore } from "@/lib/store";
 import { Empty } from "@/components/views/ListView";
 import { PriorityFlag, Avatar } from "@/components/ui";
 import { fmtDue } from "@/lib/dates";
-import { Check, X, Sparkles, ExternalLink, Pencil, MessageSquare } from "lucide-react";
+import { Check, X, Sparkles, ExternalLink, Pencil, MessageSquare, Radar } from "lucide-react";
 import { DraftModal } from "@/components/DraftModal";
 import { Why } from "@/components/Why";
 import type { Task } from "@/lib/types";
 import { PageHeader, PageBody } from "@/components/PageHeader";
+import { useSignals, SignalRow, sortSignals } from "@/components/Signals";
 
+/**
+ * One place to triage, rather than two.
+ *
+ * Suggested tasks needed accepting here; everything else the AI understood —
+ * the decision someone is waiting on, the risk, the report that mentions a
+ * deadline in passing — sat on the Signals page, which has no badge and so was
+ * never opened. Deepak's weekly SEO report spent a day there unread. Both now
+ * surface in the same place: tasks first, because they are the ones asking for
+ * a yes or no, then the rest below.
+ */
 export default function Review() {
   const { tasks, people, projects, updateTask, updatePerson, select, toast } = useStore();
   const [replyTo, setReplyTo] = useState<Task | null>(null);
+  const { rows: signalRows, dismiss, makeTask } = useSignals();
   const suggested = tasks.filter(t => t.review_state === "suggested").sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const signals = sortSignals(signalRows ?? []);
+  const nothingWaiting = !suggested.length && !signals.length;
   return (
     <div className="h-full flex flex-col">
-      <PageHeader title="Review" count={suggested.length}
-        hint="Tasks the AI found in your messages. Nothing is added until you accept it."
+      <PageHeader title="Review" count={suggested.length + signals.length}
+        hint="What the AI found in your messages. Nothing is added until you accept it."
         actions={suggested.length > 1 ? (
           <button className="btn sm" onClick={() => { suggested.forEach(t => updateTask(t.id, { review_state: "accepted" })); toast(`Accepted ${suggested.length} tasks`); }}><Check size={13} /> Accept all</button>
         ) : undefined} />
-      <PageBody>
-        {!suggested.length ? (
+      <PageBody className="grid gap-6">
+        {nothingWaiting ? (
           <Empty text="Nothing to review" sub="Once Gmail and WhatsApp are connected (Phase 2–3), suggested tasks will appear here for you to accept or reject." />
         ) : (
+          <>
+          {suggested.length > 0 && (
           <div className="grid gap-2.5">
             {suggested.map(t => {
               const person = people.find(p => p.id === t.person_id); const project = projects.find(p => p.id === t.project_id);
@@ -61,6 +77,28 @@ export default function Review() {
               );
             })}
           </div>
+          )}
+
+          {signals.length > 0 && (
+            <section>
+              <h2 className="text-[12px] font-semibold text-ink-2 mb-1.5 flex items-center gap-1.5">
+                <Radar size={13} className="text-ink-3" />
+                Also worth a look <span className="text-ink-3 font-normal tnum">{signals.length}</span>
+                <span className="text-ink-3 font-normal text-[11px] hidden sm:inline">· understood, but not a task</span>
+                <button className="btn ghost sm ml-auto" onClick={() => { dismiss(signals.map(s => s.id)); toast("Cleared"); }}>
+                  <Check size={13} /> Clear all
+                </button>
+              </h2>
+              <div className="bg-panel-2 rounded-xl overflow-hidden">
+                {signals.map(s => (
+                  <SignalRow key={s.id} s={s} showType
+                    onMakeTask={makeTask}
+                    onDismiss={ids => { dismiss(ids); toast("Cleared"); }} />
+                ))}
+              </div>
+            </section>
+          )}
+          </>
         )}
       </PageBody>
       <DraftModal task={replyTo} kind="ack" onClose={() => setReplyTo(null)} />

@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Popover } from "./ui";
 import { isOverdue } from "@/lib/dates";
+import { useSignalCount } from "@/components/Signals";
 
 const COLORS = ["#3144C2", "#C8281B", "#C06600", "#1D7447", "#7B3FB8", "#0E7C86", "#8A94A6", "#B8236B"];
 
@@ -46,7 +47,11 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
   const todayCount = open.filter(t => t.due_at && new Date(t.due_at) < endToday).length;
   const overdue = open.filter(t => isOverdue(t)).length;
   const inboxCount = open.filter(t => t.status === "inbox").length;
-  const reviewCount = tasks.filter(t => t.review_state === "suggested").length;
+  // Signals count towards Review's badge because Review now shows them: a
+  // number that ignored them would say "nothing waiting" while four unread
+  // things sat on the page.
+  const signalCount = useSignalCount();
+  const reviewCount = tasks.filter(t => t.review_state === "suggested").length + signalCount;
   // Only the stale ones badge the nav: a count that includes yesterday's asks
   // would sit permanently non-zero and stop meaning anything.
   const waitingCount = open.filter(t => t.waiting_on_person_id && !t.parent_id
@@ -71,7 +76,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
         <Item href="/inbox" icon={Inbox} label="Inbox" count={inboxCount} onClose={onClose} />
         <Item href="/review" icon={Sparkles} label="Review" count={reviewCount} accent onClose={onClose} />
         <Item href="/all" icon={Layers} label="All tasks" count={open.length} onClose={onClose} />
-        <Item href="/signals" icon={Radar} label="Signals" onClose={onClose} />
+        <Item href="/signals" icon={Radar} label="Signals" count={signalCount} onClose={onClose} />
         <Item href="/followups" icon={Clock} label="Follow-ups" count={waitingCount} accent={waitingCount > 0} onClose={onClose} />
         <Item href="/people" icon={Users} label="People" onClose={onClose} />
         <Item href="/logbook" icon={CheckCircle2} label="Logbook" onClose={onClose} />
