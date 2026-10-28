@@ -7,10 +7,16 @@ import { teamEmail, initials } from "@/lib/team";
 import type { Task, TaskComment, TeamMember } from "@/lib/types";
 import { Popover } from "./ui";
 import { formatDistanceToNow } from "date-fns";
-import { Check, CornerUpLeft, MessageCircleQuestion, Eye, Send, UserRound, X } from "lucide-react";
+import { Check, CornerUpLeft, MessageCircleQuestion, Eye, Send, UserRound, UserPlus, X } from "lucide-react";
 import clsx from "clsx";
 
-/** Who a task is handed to. Assigning emails them; un-assigning does not. */
+/**
+ * Who a task is handed to. Assigning emails them; un-assigning does not.
+ *
+ * Compact is the one on every task row: initials when someone has it, a faint
+ * "assign" icon when nobody does — visible without hovering, because handing
+ * work out from the list is the point, and phones have no hover.
+ */
 export function AssigneePicker({ task, compact }: { task: Task; compact?: boolean }) {
   const { team, updateTask } = useStore();
   const who = team.find(m => m.id === task.assignee_id);
@@ -21,15 +27,17 @@ export function AssigneePicker({ task, compact }: { task: Task; compact?: boolea
       await teamEmail("assigned", { taskId: task.id });
     }
   }
-  if (compact) {
-    if (!who) return null;
-    return <span className="w-5 h-5 rounded-full bg-p3-soft text-p3 grid place-items-center text-[9.5px] font-semibold flex-none" title={`Assigned to ${who.name}`}>{initials(who.name)}</span>;
-  }
-  return (
-    <Popover trigger={
-      <button className="pill text-ink-2 hover:bg-hover">
+  // No team yet: an empty assign button on every row would only be clutter.
+  if (compact && !team.length && !who) return null;
+  const trigger = compact
+    ? who
+      ? <button className="w-5 h-5 rounded-full bg-p3-soft text-p3 grid place-items-center text-[9.5px] font-semibold flex-none hover:ring-2 hover:ring-p3/30" title={`Assigned to ${who.name} — click to change`}>{initials(who.name)}</button>
+      : <button className="w-5 h-5 rounded-full grid place-items-center text-ink-3 opacity-50 hover:opacity-100 hover:bg-hover flex-none" title="Assign to someone"><UserPlus size={12} /></button>
+    : <button className="pill text-ink-2 hover:bg-hover">
         {who ? <><span className="w-4 h-4 rounded-full bg-p3-soft text-p3 grid place-items-center text-[8.5px] font-semibold">{initials(who.name)}</span>{who.name}</> : <><UserRound size={11} /> Me</>}
-      </button>}>
+      </button>;
+  return (
+    <Popover trigger={trigger}>
       {(close) => <>
         <button className="menu-item" data-active={!who} onClick={() => { assign(null); close(); }}><UserRound size={12} /> Me</button>
         {team.map(m => (

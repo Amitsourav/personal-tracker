@@ -46,6 +46,7 @@ export function TaskRow({ task, showProject = true, sortable = false, depth = 0 
         <PriorityPicker task={task} subtle />
       </div>
       <div className="sm:hidden flex items-center gap-1 flex-none" onClick={e => e.stopPropagation()}>
+        <AssigneePicker task={task} compact />
         <DuePicker task={task} compact />
         <PriorityPicker task={task} subtle />
       </div>

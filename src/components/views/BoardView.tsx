@@ -5,6 +5,7 @@ import clsx from "clsx";
 import { useStore } from "@/lib/store";
 import type { Task } from "@/lib/types";
 import { DuePicker, PriorityPicker, PersonPicker } from "../pickers";
+import { AssigneePicker } from "../TeamThread";
 import { PriorityFlag, Avatar } from "../ui";
 import { fmtDue } from "@/lib/dates";
 import { Plus } from "lucide-react";
@@ -62,7 +63,10 @@ function Card({ task, overlay }: { task: Task; overlay?: boolean }) {
         <PriorityFlag p={task.priority} />
         {task.due_at && <DuePicker task={task} />}
         {p && <span className="pill text-ink-2"><span className="w-[7px] h-[7px] rounded-[2px]" style={{ background: p.color }} /> {p.name}</span>}
-        {person && <span className="ml-auto"><Avatar name={person.name} size={16} /></span>}
+        <span className="ml-auto flex items-center gap-1">
+          {person && <Avatar name={person.name} size={16} />}
+          <AssigneePicker task={task} compact />
+        </span>
       </div>
     </div>
   );

@@ -5,6 +5,7 @@ import { useStore } from "@/lib/store";
 import type { Task, SortSpec } from "@/lib/types";
 import { DuePicker, PriorityPicker, StatusPicker, ProjectPicker, PersonPicker, TagPicker } from "../pickers";
 import { ArrowUp, ArrowDown } from "lucide-react";
+import { AssigneePicker } from "../TeamThread";
 import { format } from "date-fns";
 import { Empty } from "./ListView";
 
@@ -27,6 +28,7 @@ import { Empty } from "./ListView";
 const COLS: { key: string; label: string; w: number | null; sortField?: keyof Task }[] = [
   { key: "title", label: "Task", w: null, sortField: "title" },   // null = takes the remainder
   { key: "status", label: "Status", w: 120, sortField: "status" },
+  { key: "assignee", label: "Assigned to", w: 130, sortField: "assignee_id" },
   { key: "priority", label: "Priority", w: 96, sortField: "priority" },
   { key: "due", label: "Due", w: 120, sortField: "due_at" },
   { key: "project", label: "Project", w: 140, sortField: "project_id" },
@@ -100,6 +102,7 @@ export function TableView({ tasks, sort, setSort }: { tasks: Task[]; sort: SortS
                 </td>
 
                 <td className="px-1 align-middle" onClick={e => e.stopPropagation()}><StatusPicker task={t} /></td>
+                <td className="px-1 align-middle" onClick={e => e.stopPropagation()}><AssigneePicker task={t} /></td>
                 <td className="px-1 align-middle" onClick={e => e.stopPropagation()}><PriorityPicker task={t} label /></td>
                 <td className="px-1 align-middle" onClick={e => e.stopPropagation()}><DuePicker task={t} /></td>
                 <td className="px-1 align-middle" onClick={e => e.stopPropagation()}><ProjectPicker task={t} /></td>
