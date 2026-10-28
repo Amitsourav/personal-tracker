@@ -86,7 +86,7 @@ export interface TeamMember {
   id: string; owner_id: string; member_id: string | null; name: string; email: string;
   invited_at: string; joined_at: string | null; removed_at: string | null; created_at: string;
 }
-export type CommentKind = "comment" | "status_request" | "review_request" | "submitted" | "approved" | "returned" | "status" | "reminder";
+export type CommentKind = "comment" | "status_request" | "review_request" | "submitted" | "approved" | "returned" | "status" | "reminder" | "attachment";
 export interface TaskComment {
   id: string; task_id: string; owner_id: string; author_id: string | null; kind: CommentKind;
   body: string | null; resolved_at: string | null; seen_at: string | null; created_at: string;

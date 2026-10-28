@@ -54,7 +54,7 @@ export function AssigneePicker({ task, compact }: { task: Task; compact?: boolea
 
 const LABEL: Record<TaskComment["kind"], string> = {
   comment: "", status_request: "asked for an update", review_request: "asked for a review",
-  submitted: "sent this for review", approved: "approved it", returned: "sent it back", status: "moved it to", reminder: "",
+  submitted: "sent this for review", approved: "approved it", returned: "sent it back", status: "moved it to", reminder: "", attachment: "attached",
 };
 const STATUS_WORD: Record<string, string> = { todo: "To do", in_progress: "In progress", waiting: "Waiting" };
 
@@ -151,7 +151,7 @@ export function TeamThread({ task }: { task: Task }) {
                   <div className="text-[11px] text-ink-3 mb-0.5">
                     <span className="font-medium text-ink-2">{name(c)}</span>{LABEL[c.kind] && ` ${LABEL[c.kind]}`} · {formatDistanceToNow(new Date(c.created_at), { addSuffix: true })}
                   </div>
-                  {c.body && <div className="whitespace-pre-wrap break-words">{c.body}</div>}
+                  {c.body && <div className={clsx("whitespace-pre-wrap break-words", c.kind === "attachment" && "font-medium")}>{c.kind === "attachment" ? `📎 ${c.body}` : c.body}</div>}
                 </div>
               )}
             </div>

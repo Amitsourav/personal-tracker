@@ -12,6 +12,7 @@ import { Why } from "./Why";
 import { WhereToStart } from "./WhereToStart";
 import { StartFocus } from "./Focus";
 import { AssigneePicker, TeamThread } from "./TeamThread";
+import { Attachments } from "./Attachments";
 import { formatDistanceToNow, format } from "date-fns";
 import clsx from "clsx";
 
@@ -75,6 +76,7 @@ export function TaskDetail() {
           <textarea id="detail-desc" className="w-full bg-panel-2 rounded-lg p-2.5 outline-none text-[13px] resize-none min-h-[72px] border border-transparent focus:border-line" placeholder="Notes…" value={desc}
             onChange={e => setDesc(e.target.value)} onBlur={() => { if (desc !== (task.description ?? "")) updateTask(task.id, { description: desc || null }); }} />
 
+          <Attachments key={task.id} taskId={task.id} mode="owner" assigned={!!task.assignee_id} />
           <TeamThread task={task} />
           <Why task={task} />
           <WhereToStart task={task} />

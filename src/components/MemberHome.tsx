@@ -7,6 +7,7 @@ import { STATUS_LABEL, type TaskStatus } from "@/lib/types";
 import { format, formatDistanceToNow } from "date-fns";
 import { ChevronDown, ChevronRight, Eye, LogOut, MessageCircleQuestion, Plus, RefreshCw, Send } from "lucide-react";
 import clsx from "clsx";
+import { Attachments } from "./Attachments";
 
 type MTask = {
   id: string; title: string; description: string | null; status: TaskStatus; priority: number;
@@ -139,6 +140,7 @@ function Card({ t, open, muted, toggle, reload }: { t: MTask; open: boolean; mut
       {open && (
         <div className="px-3 pb-3 pl-9 grid gap-3">
           {t.description && <div className="text-[13px] text-ink-2 whitespace-pre-wrap break-words bg-panel-2 rounded-lg p-2.5">{t.description}</div>}
+          {t.done ? null : <Attachments taskId={t.id} mode="member" />}
 
           {comments.length > 0 && (
             <div className="grid gap-1.5">
@@ -149,7 +151,7 @@ function Card({ t, open, muted, toggle, reload }: { t: MTask; open: boolean; mut
               ) : (
                 <div key={c.id} className={clsx("rounded-lg px-2.5 py-1.5 text-[12.5px]", c.mine ? "bg-panel-2" : "bg-selected")}>
                   <div className="text-[11px] text-ink-3 mb-0.5"><span className="font-medium text-ink-2">{c.mine ? "You" : c.author}</span>{KIND[c.kind] && ` ${KIND[c.kind]}`} · {formatDistanceToNow(new Date(c.created_at), { addSuffix: true })}</div>
-                  {c.body && <div className="whitespace-pre-wrap break-words">{c.body}</div>}
+                  {c.body && <div className="whitespace-pre-wrap break-words">{c.kind === "attachment" ? `📎 ${c.body}` : c.body}</div>}
                 </div>
               ))}
             </div>
@@ -179,7 +181,7 @@ function Card({ t, open, muted, toggle, reload }: { t: MTask; open: boolean; mut
 
 const KIND: Record<string, string> = {
   comment: "", status_request: "asked for an update", review_request: "asked for your review",
-  submitted: "sent this for review", approved: "approved it", returned: "sent it back",
+  submitted: "sent this for review", approved: "approved it", returned: "sent it back", attachment: "attached",
 };
 
 /** Their own to-dos. Stored under their own account; nobody else can see them. */
