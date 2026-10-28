@@ -2,13 +2,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
-import { Sun, CalendarDays, Inbox, Layers, Users, CheckCircle2, Clock, CalendarClock, MessageCircleQuestion, Radar, Settings, Plus, Search, Sparkles, FolderKanban, LayoutList, Moon, SunMedium, ChevronDown, ChevronRight, MoreHorizontal, Bookmark } from "lucide-react";
+import { Sun, CalendarDays, Inbox, Layers, Users, CheckCircle2, Clock, CalendarClock, MessageCircleQuestion, Radar, Settings, Plus, Search, Sparkles, FolderKanban, LayoutList, Moon, SunMedium, ChevronDown, ChevronRight, MoreHorizontal, Bookmark, UsersRound } from "lucide-react";
 import { useStore, isOpen } from "@/lib/store";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Popover } from "./ui";
 import { isOverdue } from "@/lib/dates";
 import { useSignalCount } from "@/components/Signals";
+import { useTeamUnseen } from "@/lib/team";
 
 const COLORS = ["#3144C2", "#C8281B", "#C06600", "#1D7447", "#7B3FB8", "#0E7C86", "#8A94A6", "#B8236B"];
 
@@ -56,6 +57,10 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
   // would sit permanently non-zero and stop meaning anything.
   const waitingCount = open.filter(t => t.waiting_on_person_id && !t.parent_id
     && now.getTime() - new Date(t.created_at).getTime() >= 3 * 86_400_000).length;
+  // Work sent back for review, plus replies not yet opened: the two things on
+  // the Team page that are waiting on Amit rather than on someone else.
+  const teamUnseen = useTeamUnseen();
+  const teamCount = new Set([...open.filter(t => t.status === "in_review").map(t => t.id), ...teamUnseen.map(u => u.task_id)]).size;
   const projCount = (id: string) => open.filter(t => t.project_id === id).length;
 
   return (
@@ -78,6 +83,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
         <Item href="/all" icon={Layers} label="All tasks" count={open.length} onClose={onClose} />
         <Item href="/signals" icon={Radar} label="Signals" count={signalCount} onClose={onClose} />
         <Item href="/followups" icon={Clock} label="Follow-ups" count={waitingCount} accent={waitingCount > 0} onClose={onClose} />
+        <Item href="/team" icon={UsersRound} label="Team" count={teamCount} accent onClose={onClose} />
         <Item href="/people" icon={Users} label="People" onClose={onClose} />
         <Item href="/logbook" icon={CheckCircle2} label="Logbook" onClose={onClose} />
         <Item href="/ask" icon={MessageCircleQuestion} label="Ask" onClose={onClose} />

@@ -6,6 +6,9 @@ const SCOPES = [
   "openid", "email",
   "https://www.googleapis.com/auth/gmail.readonly",
   "https://www.googleapis.com/auth/calendar",
+  // Team emails (invites, assignments, update requests) go out from Amit's own
+  // Gmail. Send-only: this cannot read, change or delete anything.
+  "https://www.googleapis.com/auth/gmail.send",
 ];
 
 export async function GET(request: Request) {

@@ -1,4 +1,4 @@
-export type TaskStatus = "inbox" | "todo" | "in_progress" | "waiting" | "done" | "cancelled";
+export type TaskStatus = "inbox" | "todo" | "in_progress" | "waiting" | "in_review" | "done" | "cancelled";
 export type ReviewState = "suggested" | "accepted" | "rejected";
 export type SourceKind = "manual" | "gmail" | "whatsapp" | "bot" | "calendar" | "meeting" | "other";
 
@@ -19,6 +19,8 @@ export interface Task {
   parent_id: string | null;
   person_id: string | null;
   waiting_on_person_id: string | null;
+  /** A team member this was handed to. Null means Amit is doing it himself. */
+  assignee_id: string | null;
   recurrence: string | null;
   recurrence_anchor: string | null;
   custom_fields: Record<string, unknown>;
@@ -72,7 +74,19 @@ export interface ViewFilter {
 export interface SortSpec { field: keyof Task; dir: "asc" | "desc" }
 
 export const STATUS_LABEL: Record<TaskStatus, string> = {
-  inbox: "Inbox", todo: "To do", in_progress: "In progress", waiting: "Waiting", done: "Done", cancelled: "Cancelled",
+  inbox: "Inbox", todo: "To do", in_progress: "In progress", waiting: "Waiting", in_review: "In review", done: "Done", cancelled: "Cancelled",
 };
-export const STATUS_ORDER: TaskStatus[] = ["inbox", "todo", "in_progress", "waiting", "done", "cancelled"];
+export const STATUS_ORDER: TaskStatus[] = ["inbox", "todo", "in_progress", "waiting", "in_review", "done", "cancelled"];
 export const PRIORITY_LABEL: Record<number, string> = { 1: "Urgent", 2: "High", 3: "Medium", 4: "None" };
+
+export interface TeamMember {
+  id: string; owner_id: string; member_id: string | null; name: string; email: string;
+  invited_at: string; joined_at: string | null; removed_at: string | null; created_at: string;
+}
+export type CommentKind = "comment" | "status_request" | "review_request" | "submitted" | "approved" | "returned" | "status";
+export interface TaskComment {
+  id: string; task_id: string; owner_id: string; author_id: string | null; kind: CommentKind;
+  body: string | null; resolved_at: string | null; seen_at: string | null; created_at: string;
+}
+/** Set when the signed-in person is someone's employee rather than an owner. */
+export interface Membership { member_id: string; owner_id: string; name: string; owner_name: string }

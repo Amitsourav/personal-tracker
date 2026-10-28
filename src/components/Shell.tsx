@@ -8,11 +8,12 @@ import { QuickAdd } from "./QuickAdd";
 import { CommandBar } from "./CommandBar";
 import { Toasts } from "./Toasts";
 import { Focus } from "./Focus";
+import { MemberHome } from "./MemberHome";
 import { Menu } from "lucide-react";
 import clsx from "clsx";
 
 export function Shell({ children }: { children: React.ReactNode }) {
-  const { ready, load, selectedId, select, setCmdOpen, setQuickAddOpen, focusId, setFocus, completeTask, updateTask, deleteTask, tasks, cmdOpen, quickAddOpen } = useStore();
+  const { ready, load, membership, selectedId, select, setCmdOpen, setQuickAddOpen, focusId, setFocus, completeTask, updateTask, deleteTask, tasks, cmdOpen, quickAddOpen } = useStore();
   const [nav, setNav] = useState(false);
   const router = useRouter();
   useEffect(() => { load(); }, [load]);
@@ -49,6 +50,13 @@ export function Shell({ children }: { children: React.ReactNode }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [focusId, selectedId, tasks, cmdOpen, quickAddOpen, router, select, setCmdOpen, setQuickAddOpen, setFocus, completeTask, updateTask, deleteTask]);
+
+  // A team member gets their own small screen, whatever URL they open. The
+  // owner's pages are never rendered for them, not merely emptied by RLS.
+  // Until load() says which, show neither: the owner's sidebar must not flash
+  // up for an employee.
+  if (!ready) return <div className="h-dvh grid place-items-center text-ink-3 text-[12px]">Loading…</div>;
+  if (membership.length) return <><MemberHome /><Toasts /></>;
 
   return (
     <div className="h-dvh flex overflow-hidden">

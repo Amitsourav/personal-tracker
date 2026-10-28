@@ -79,7 +79,7 @@ export function IntegrationsSettings() {
       <Section title="Google — Gmail & Calendar" hint="One-time setup with your own Google credentials. I'll walk you through creating them.">
         {s.google_refresh_token ? (
           <>
-            <Row label="Connected as"><div className="flex items-center gap-2 text-[12.5px]"><CheckCircle2 size={14} className="text-ok" /> {s.google_email}<button className="btn sm ml-2" onClick={async () => { await fetch("/api/google/disconnect", { method: "POST" }); load(); }}>Disconnect</button></div></Row>
+            <Row label="Connected as"><div className="flex items-center gap-2 text-[12.5px]"><CheckCircle2 size={14} className="text-ok" /> {s.google_email}<a className="btn sm ml-2" href="/api/google/start" title="Approve again, e.g. after Tracker asks for a new permission">Reconnect</a><button className="btn sm" onClick={async () => { await fetch("/api/google/disconnect", { method: "POST" }); load(); }}>Disconnect</button></div></Row>
             <Row label="Read Gmail"><label className="flex items-center gap-2 text-[12.5px]"><input type="checkbox" checked={s.gmail_enabled} onChange={e => save({ gmail_enabled: e.target.checked })} /> Check for new tasks every 5 minutes</label></Row>
             <Row label="Ignore senders"><input className="field" placeholder="comma separated emails or domains, e.g. noreply@, @linkedin.com" defaultValue={s.gmail_ignore_senders.join(", ")} onBlur={e => save({ gmail_ignore_senders: e.target.value.split(",").map(x => x.trim()).filter(Boolean) })} /></Row>
             <Row label="Last check">

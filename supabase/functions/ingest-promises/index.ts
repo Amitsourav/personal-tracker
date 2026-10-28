@@ -22,7 +22,7 @@ type Person = { id: string; name: string; emails: string[]; trust_level: string 
 type OpenTask = { id: string; title: string; person_id: string | null; due_at: string | null };
 type Mail = {
   id: string; threadId: string; toEmail: string; toName: string; cc: string;
-  subject: string; date: string; body: string; labels: string[];
+  subject: string; date: string; body: string; labels: string[]; fromTracker: boolean;
 };
 
 Deno.serve(async (req) => {
@@ -124,7 +124,8 @@ async function runForUser(db: SupabaseClient, uid: string, override?: number) {
     const mail = parseSent(m);
 
     let skip: string | null = null;
-    if (!mail.toEmail) skip = "no recipient";
+    if (mail.fromTracker) skip = "sent by Tracker";
+    else if (!mail.toEmail) skip = "no recipient";
     else if (mail.toEmail === selfEmail) skip = "note to self";
     else if (/no-?reply|donotreply|support@|billing@|@notify\./i.test(mail.toEmail)) skip = "automated recipient";
     else if (mail.body.trim().length < 25) skip = "too short to contain a promise";
@@ -243,6 +244,9 @@ function parseSent(m: {
     id: m.id, threadId: m.threadId, toEmail, toName, cc: header(h, "Cc"),
     subject: header(h, "Subject"), date: new Date(Number(m.internalDate)).toISOString(),
     body: body.slice(0, 6000), labels: m.labelIds ?? [],
+    // Team emails (assignments, update requests) go out from this mailbox.
+    // They are Amit asking, not Amit promising.
+    fromTracker: !!header(h, "X-Tracker"),
   };
 }
 function redact(s: string) {

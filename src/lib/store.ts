@@ -1,7 +1,7 @@
 "use client";
 import { create } from "zustand";
 import { createClient } from "./supabase/client";
-import type { Task, Project, Tag, Person, TaskTag, SavedView, Profile, TaskStatus } from "./types";
+import type { Task, Project, Tag, Person, TaskTag, SavedView, Profile, TaskStatus, TeamMember, Membership } from "./types";
 import { RRule } from "rrule";
 
 type Toast = { id: number; text: string; undo?: () => void };
@@ -16,6 +16,9 @@ interface State {
   people: Person[];
   taskTags: TaskTag[];
   views: SavedView[];
+  team: TeamMember[];
+  /** Non-empty when the signed-in person is on someone's team; they get the employee screen. */
+  membership: Membership[];
   selectedId: string | null;
   focusId: string | null;
   toasts: Toast[];
@@ -46,20 +49,25 @@ interface State {
   updateProfile: (patch: Partial<Profile>) => Promise<void>;
   addView: (v: Partial<SavedView> & { name: string }) => Promise<SavedView | null>;
   deleteView: (id: string) => Promise<void>;
+  addMember: (name: string, email: string) => Promise<TeamMember | null>;
+  removeMember: (id: string) => Promise<void>;
 }
 
 let toastSeq = 1;
 const sb = () => createClient();
 
 export const useStore = create<State>((set, get) => ({
-  ready: false, userId: null, profile: null, tasks: [], projects: [], tags: [], people: [], taskTags: [], views: [],
+  ready: false, userId: null, profile: null, tasks: [], projects: [], tags: [], people: [], taskTags: [], views: [], team: [], membership: [],
   selectedId: null, focusId: null, toasts: [], cmdOpen: false, quickAddOpen: false, focus: null,
 
   async load() {
     const s = sb();
     const { data: { user } } = await s.auth.getUser();
     if (!user) return;
-    const [tasks, projects, tags, people, taskTags, views, profile] = await Promise.all([
+    // First, so an employee never sees the owner screen flash up. It also links
+    // a pending invite to this account the first time they sign in.
+    const { data: membership } = await s.rpc("claim_team_invites");
+    const [tasks, projects, tags, people, taskTags, views, profile, team] = await Promise.all([
       s.from("tasks").select("*").is("deleted_at", null).order("sort_order").order("created_at"),
       s.from("projects").select("*").is("archived_at", null).order("sort_order").order("created_at"),
       s.from("tags").select("*").order("name"),
@@ -67,12 +75,14 @@ export const useStore = create<State>((set, get) => ({
       s.from("task_tags").select("*"),
       s.from("saved_views").select("*").order("sort_order"),
       s.from("profiles").select("*").eq("id", user.id).maybeSingle(),
+      s.from("team_members").select("*").is("removed_at", null).order("name"),
     ]);
     set({
       ready: true, userId: user.id,
       tasks: (tasks.data ?? []) as Task[], projects: (projects.data ?? []) as Project[], tags: (tags.data ?? []) as Tag[],
       people: (people.data ?? []) as Person[], taskTags: (taskTags.data ?? []) as TaskTag[], views: (views.data ?? []) as SavedView[],
       profile: (profile.data ?? null) as Profile | null,
+      team: (team.data ?? []) as TeamMember[], membership: (membership ?? []) as Membership[],
     });
     // realtime: keep Mac + iPhone in sync
     s.channel("tracker")
@@ -262,6 +272,24 @@ export const useStore = create<State>((set, get) => ({
     if (error || !data) { get().toast("Couldn't save view"); return null; }
     set(s => ({ views: [...s.views, data as SavedView] }));
     return data as SavedView;
+  },
+  async addMember(name, email) {
+    const { data, error } = await sb().from("team_members")
+      .insert({ owner_id: get().userId, name: name.trim(), email: email.trim().toLowerCase() }).select("*").single();
+    if (error || !data) {
+      get().toast(error?.code === "23505" ? "That email is already on your team" : "Couldn't add: " + error?.message);
+      return null;
+    }
+    set(s => ({ team: [...s.team, data as TeamMember].sort((a, b) => a.name.localeCompare(b.name)) }));
+    return data as TeamMember;
+  },
+  async removeMember(id) {
+    // Their open tasks come back to Amit rather than staying with someone who
+    // can no longer see them.
+    const theirs = get().tasks.filter(t => t.assignee_id === id && isOpen(t.status));
+    set(s => ({ team: s.team.filter(m => m.id !== id) }));
+    await sb().from("team_members").update({ removed_at: new Date().toISOString() }).eq("id", id);
+    for (const t of theirs) await get().updateTask(t.id, { assignee_id: null, ...(t.status === "in_review" ? { status: "todo" as const } : {}) }, { silent: true });
   },
   async deleteView(id) {
     set(s => ({ views: s.views.filter(v => v.id !== id) }));

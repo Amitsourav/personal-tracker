@@ -11,6 +11,7 @@ import { DoWithAI } from "./DoWithAI";
 import { Why } from "./Why";
 import { WhereToStart } from "./WhereToStart";
 import { StartFocus } from "./Focus";
+import { AssigneePicker, TeamThread } from "./TeamThread";
 import { formatDistanceToNow, format } from "date-fns";
 import clsx from "clsx";
 
@@ -54,6 +55,7 @@ export function TaskDetail() {
           </div>
           <div className="grid grid-cols-[92px_1fr] gap-y-2 gap-x-2 items-center text-[12.5px]">
             <span className="text-ink-3">Status</span><div><StatusPicker task={task} /></div>
+            <span className="text-ink-3">Assigned to</span><div><AssigneePicker task={task} /></div>
             <span className="text-ink-3">Priority</span><div><PriorityPicker task={task} label /></div>
             <span className="text-ink-3">Due</span><div><DuePicker task={task} /></div>
             <span className="text-ink-3">Plan to do</span><div><PlannedPicker task={task} /></div>
@@ -73,6 +75,7 @@ export function TaskDetail() {
           <textarea id="detail-desc" className="w-full bg-panel-2 rounded-lg p-2.5 outline-none text-[13px] resize-none min-h-[72px] border border-transparent focus:border-line" placeholder="Notes…" value={desc}
             onChange={e => setDesc(e.target.value)} onBlur={() => { if (desc !== (task.description ?? "")) updateTask(task.id, { description: desc || null }); }} />
 
+          <TeamThread task={task} />
           <Why task={task} />
           <WhereToStart task={task} />
           <StartFocus task={task} />
