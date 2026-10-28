@@ -309,6 +309,8 @@ export function applyFilter(tasks: Task[], taskTags: TaskTag[], f: import("./typ
     if (f.priority?.length && !f.priority.includes(t.priority)) return false;
     if (f.project_id?.length && !f.project_id.includes(t.project_id ?? "")) return false;
     if (f.person_id?.length && !(f.person_id.includes(t.person_id ?? "") || f.person_id.includes(t.waiting_on_person_id ?? ""))) return false;
+    if (f.assigned && !t.assignee_id) return false;
+    if (f.assignee_id?.length && !f.assignee_id.includes(t.assignee_id ?? "")) return false;
     if (f.tag_id?.length && !taskTags.some(tt => tt.task_id === t.id && f.tag_id!.includes(tt.tag_id))) return false;
     if (f.due && f.due !== "any") {
       // Date views answer "is this on my plate today", so a planned date counts

@@ -54,7 +54,7 @@ export function AssigneePicker({ task, compact }: { task: Task; compact?: boolea
 
 const LABEL: Record<TaskComment["kind"], string> = {
   comment: "", status_request: "asked for an update", review_request: "asked for a review",
-  submitted: "sent this for review", approved: "approved it", returned: "sent it back", status: "moved it to",
+  submitted: "sent this for review", approved: "approved it", returned: "sent it back", status: "moved it to", reminder: "",
 };
 const STATUS_WORD: Record<string, string> = { todo: "To do", in_progress: "In progress", waiting: "Waiting" };
 
@@ -142,7 +142,9 @@ export function TeamThread({ task }: { task: Task }) {
         <div className="grid gap-2 max-h-[320px] overflow-y-auto">
           {rows.map(c => (
             <div key={c.id} className="text-[12.5px]">
-              {c.kind === "status" ? (
+              {c.kind === "reminder" ? (
+                <div className="text-ink-3 text-[11.5px]">Automatic reminder emailed ({c.body}) · {formatDistanceToNow(new Date(c.created_at), { addSuffix: true })}</div>
+              ) : c.kind === "status" ? (
                 <div className="text-ink-3 text-[11.5px]">{name(c)} moved it to {STATUS_WORD[c.body ?? ""] ?? c.body} · {formatDistanceToNow(new Date(c.created_at), { addSuffix: true })}</div>
               ) : (
                 <div className={clsx("rounded-lg px-2.5 py-1.5", c.author_id === userId ? "bg-panel-2" : "bg-selected")}>

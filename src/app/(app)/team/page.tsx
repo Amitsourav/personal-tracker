@@ -7,7 +7,9 @@ import { PageHeader, PageBody } from "@/components/PageHeader";
 import { STATUS_LABEL, type Task, type TeamMember } from "@/lib/types";
 import { Popover } from "@/components/ui";
 import { formatDistanceToNow, format } from "date-fns";
-import { AlertTriangle, MoreHorizontal, UserPlus, Eye, MessageSquare } from "lucide-react";
+import { AlertTriangle, MoreHorizontal, UserPlus, Eye, MessageSquare, Kanban, BellRing } from "lucide-react";
+import Link from "next/link";
+import { TeamSummary } from "@/components/TeamSummary";
 import clsx from "clsx";
 
 const SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send";
@@ -25,11 +27,23 @@ export default function TeamPage() {
   const [email, setEmail] = useState("");
   const [adding, setAdding] = useState(false);
   const [canSend, setCanSend] = useState<boolean | null>(null);
+  const [reminders, setReminders] = useState<boolean | null>(null);
 
   useEffect(() => {
-    createClient().from("user_secrets").select("google_scopes, google_refresh_token").maybeSingle()
-      .then(({ data }) => setCanSend(!!data?.google_refresh_token && (data.google_scopes ?? []).includes(SEND_SCOPE)));
+    createClient().from("user_secrets").select("*").maybeSingle()
+      .then(({ data }) => {
+        setCanSend(!!data?.google_refresh_token && (data.google_scopes ?? []).includes(SEND_SCOPE));
+        // Absent until the reminders migration runs; the switch stays hidden till then.
+        setReminders(data?.team_reminders_enabled ?? null);
+      });
   }, []);
+  async function toggleReminders() {
+    const next = !reminders;
+    setReminders(next);
+    const { error } = await createClient().from("user_secrets").update({ team_reminders_enabled: next }).eq("user_id", useStore.getState().userId!);
+    if (error) { setReminders(!next); toast("Couldn't change reminders: " + error.message); return; }
+    toast(next ? "Automatic reminders on" : "Automatic reminders off");
+  }
 
   const assigned = useMemo(() => tasks.filter(t => t.assignee_id && t.review_state === "accepted"), [tasks]);
   const unseenTasks = new Set(unseen.map(u => u.task_id));
@@ -50,7 +64,16 @@ export default function TeamPage() {
 
   return (
     <div className="h-full flex flex-col">
-      <PageHeader title="Team" count={team.length} hint="People you hand work to. They see only the tasks you assign them." />
+      <PageHeader title="Team" count={team.length} hint="People you hand work to. They see only the tasks you assign them."
+        actions={<>
+          {reminders !== null && team.length > 0 && (
+            <button className={clsx("btn sm", reminders && "text-accent border-accent")} onClick={toggleReminders}
+              title="Each working morning at 9:00, emails anyone with work due today, due tomorrow or overdue">
+              <BellRing size={13} /> <span className="hidden sm:inline">Reminders {reminders ? "on" : "off"}</span>
+            </button>
+          )}
+          <Link href="/team/board" className="btn sm primary"><Kanban size={13} /> Board</Link>
+        </>} />
       <PageBody className="grid gap-5 content-start max-w-[820px]">
         {canSend === false && (
           <div className="rounded-xl border border-line bg-p2-soft text-p2 p-3 text-[12.5px] flex items-start gap-2">
@@ -59,6 +82,8 @@ export default function TeamPage() {
               <a className="underline font-medium ml-1" href="/api/google/start">Reconnect Google</a> once and tick the “Send email on your behalf” box.</div>
           </div>
         )}
+
+        <TeamSummary />
 
         <form onSubmit={add} className="bg-panel-2 rounded-xl p-4 grid gap-2.5">
           <div className="font-semibold text-[13px] flex items-center gap-1.5"><UserPlus size={14} /> Add someone</div>

@@ -142,7 +142,9 @@ function Card({ t, open, muted, toggle, reload }: { t: MTask; open: boolean; mut
 
           {comments.length > 0 && (
             <div className="grid gap-1.5">
-              {comments.map(c => c.kind === "status" ? (
+              {comments.map(c => c.kind === "reminder" ? (
+                <div key={c.id} className="text-[11.5px] text-ink-3">Reminder emailed to you ({c.body}) · {formatDistanceToNow(new Date(c.created_at), { addSuffix: true })}</div>
+              ) : c.kind === "status" ? (
                 <div key={c.id} className="text-[11.5px] text-ink-3">{c.mine ? "You" : c.author} moved it to {STATUS_LABEL[c.body as TaskStatus] ?? c.body} · {formatDistanceToNow(new Date(c.created_at), { addSuffix: true })}</div>
               ) : (
                 <div key={c.id} className={clsx("rounded-lg px-2.5 py-1.5 text-[12.5px]", c.mine ? "bg-panel-2" : "bg-selected")}>

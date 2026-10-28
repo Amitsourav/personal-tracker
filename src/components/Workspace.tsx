@@ -12,8 +12,9 @@ import { Popover } from "./ui";
 import { List, Table2, Kanban, CalendarDays, SlidersHorizontal, ArrowUpDown, Rows3, Search, Bookmark, Check, Eye, EyeOff, Plus } from "lucide-react";
 import { dueBucket, effectiveDate } from "@/lib/dates";
 import { parseQuickAdd } from "@/lib/quickadd";
+import { teamEmail } from "@/lib/team";
 
-export type GroupBy = "none" | "due" | "project" | "priority" | "status" | "person";
+export type GroupBy = "none" | "due" | "project" | "priority" | "status" | "person" | "assignee";
 
 export interface WorkspaceProps {
   scopeKey: string;                 // for remembering layout per view
@@ -40,7 +41,7 @@ const SORTS: { label: string; value: SortSpec[] }[] = [
 ];
 
 export function Workspace(p: WorkspaceProps) {
-  const { tasks, taskTags, projects, tags, people, addTask, updateTask, addView, toast } = useStore();
+  const { tasks, taskTags, projects, tags, people, team, addTask, updateTask, addView, toast } = useStore();
   const [layout, setLayout] = useState<Layout>(p.defaultLayout ?? "list");
   const [group, setGroup] = useState<GroupBy>(p.defaultGroup ?? "none");
   const [sort, setSort] = useState<SortSpec[]>(p.defaultSort ?? []);
@@ -108,11 +109,12 @@ export function Workspace(p: WorkspaceProps) {
       else if (group === "priority") push(String(t.priority), PRIORITY_LABEL[t.priority], t);
       else if (group === "status") push(t.status, STATUS_LABEL[t.status], t);
       else if (group === "person") { const pe = people.find(x => x.id === t.person_id); push(pe?.id ?? "none", pe?.name ?? "No one", t); }
+      else if (group === "assignee") { const m = team.find(x => x.id === t.assignee_id); push(m?.id ?? "none", m?.name ?? "Me", t); }
     }
     const order = group === "due" ? ["overdue", "today", "tomorrow", "week", "later", "none"] : group === "priority" ? ["1", "2", "3", "4"] : group === "status" ? STATUS_ORDER : null;
     const arr = [...m.values()];
     return order ? arr.sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key)) : arr.sort((a, b) => a.label.localeCompare(b.label));
-  }, [visible, group, projects, people, p.title]);
+  }, [visible, group, projects, people, team, p.title]);
 
   async function quickAdd(groupKey: string, text: string) {
     const parsed = parseQuickAdd(text, { projects, tags, people });
@@ -121,6 +123,7 @@ export function Workspace(p: WorkspaceProps) {
     if (group === "priority") extra.priority = Number(groupKey) as 1|2|3|4;
     if (group === "status") extra.status = groupKey as TaskStatus;
     if (group === "person" && groupKey !== "none") extra.person_id = groupKey;
+    if (group === "assignee" && groupKey !== "none") extra.assignee_id = groupKey;
     if (group === "due" && !parsed.due_at) { const d = new Date(); d.setHours(23, 59, 0, 0); if (groupKey === "tomorrow") d.setDate(d.getDate() + 1); if (groupKey === "week") d.setDate(d.getDate() + 3); if (["today", "tomorrow", "week"].includes(groupKey)) extra.due_at = d.toISOString(); }
     await addTask({ title: parsed.title || text, priority: parsed.priority, due_at: parsed.due_at, due_has_time: parsed.due_has_time, project_id: parsed.project?.id ?? null, duration_min: parsed.duration_min, recurrence: parsed.recurrence, ...extra }, parsed.tags.map(t => t.id));
   }
@@ -130,18 +133,26 @@ export function Workspace(p: WorkspaceProps) {
     if (by === "status") return STATUS_ORDER.filter(s => showDone || (s !== "done" && s !== "cancelled")).map(s => ({ key: s, label: STATUS_LABEL[s], tasks: visible.filter(t => t.status === s) }));
     if (by === "priority") return [1, 2, 3, 4].map(n => ({ key: String(n), label: PRIORITY_LABEL[n], tasks: visible.filter(t => t.priority === n) }));
     if (by === "project") return [...projects.map(pr => ({ key: pr.id, label: pr.name, color: pr.color, tasks: visible.filter(t => t.project_id === pr.id) })), { key: "none", label: "No project", tasks: visible.filter(t => !t.project_id) }];
+    if (by === "assignee") return [{ key: "none", label: "Me", tasks: visible.filter(t => !t.assignee_id) }, ...team.map(m => ({ key: m.id, label: m.name, tasks: visible.filter(t => t.assignee_id === m.id) }))];
     return [...people.map(pe => ({ key: pe.id, label: pe.name, tasks: visible.filter(t => t.person_id === pe.id) })), { key: "none", label: "No one", tasks: visible.filter(t => !t.person_id) }];
-  }, [visible, group, projects, people, showDone]);
+  }, [visible, group, projects, people, team, showDone]);
 
   function boardMove(taskId: string, col: string) {
     const by = group === "none" || group === "due" ? "status" : group;
     if (by === "status") { if (col === "done") useStore.getState().completeTask(taskId); else updateTask(taskId, { status: col as TaskStatus, completed_at: null }); }
     else if (by === "priority") updateTask(taskId, { priority: Number(col) as 1|2|3|4 });
     else if (by === "project") updateTask(taskId, { project_id: col === "none" ? null : col });
+    else if (by === "assignee") {
+      // Dragging to someone's column hands it to them, so it tells them, the
+      // same as choosing them from the picker.
+      const to = col === "none" ? null : col;
+      if (tasks.find(t => t.id === taskId)?.assignee_id === to) return;
+      updateTask(taskId, { assignee_id: to }).then(() => { if (to) teamEmail("assigned", { taskId }); });
+    }
     else updateTask(taskId, { person_id: col === "none" ? null : col });
   }
 
-  const activeFilters = (filter.priority?.length ?? 0) + (filter.project_id?.length ?? 0) + (filter.tag_id?.length ?? 0) + (filter.status?.length ?? 0) + (filter.person_id?.length ?? 0) + (filter.due ? 1 : 0);
+  const activeFilters = (filter.priority?.length ?? 0) + (filter.project_id?.length ?? 0) + (filter.tag_id?.length ?? 0) + (filter.status?.length ?? 0) + (filter.person_id?.length ?? 0) + (filter.assignee_id?.length ?? 0) + (filter.due ? 1 : 0);
   const toggleIn = <T,>(arr: T[] | undefined, v: T) => { const a = arr ?? []; return a.includes(v) ? a.filter(x => x !== v) : [...a, v]; };
 
   return (
@@ -159,7 +170,7 @@ export function Workspace(p: WorkspaceProps) {
             {LAYOUTS.map(l => <button key={l.key} title={l.label} className={clsx("h-7 w-8 grid place-items-center", layout === l.key ? "bg-selected text-accent" : "text-ink-3 hover:bg-hover hover:text-ink")} onClick={() => chooseLayout(l.key)}><l.icon size={14} /></button>)}
           </div>
           <Popover align="right" trigger={<button className={clsx("btn sm", group !== "none" && "text-accent border-accent")}><Rows3 size={13} /> <span className="hidden sm:inline">{group === "none" ? "Group" : `By ${group}`}</span></button>}>
-            {(close) => <>{(["none", "due", "project", "priority", "status", "person"] as GroupBy[]).map(g => <button key={g} className="menu-item capitalize" data-active={group === g} onClick={() => { setGroup(g); close(); }}>{g === "none" ? "No grouping" : g}{group === g && <Check size={12} className="ml-auto" />}</button>)}</>}
+            {(close) => <>{(["none", "due", "project", "priority", "status", "person", ...(team.length ? ["assignee"] : [])] as GroupBy[]).map(g => <button key={g} className="menu-item capitalize" data-active={group === g} onClick={() => { setGroup(g); close(); }}>{g === "none" ? "No grouping" : g}{group === g && <Check size={12} className="ml-auto" />}</button>)}</>}
           </Popover>
           <Popover align="right" trigger={<button className={clsx("btn sm", sort.length > 0 && "text-accent border-accent")}><ArrowUpDown size={13} /> <span className="hidden sm:inline">{SORTS.find(s => JSON.stringify(s.value) === JSON.stringify(sort))?.label ?? "Sorted"}</span></button>}>
             {(close) => <>{SORTS.map(s => <button key={s.label} className="menu-item" data-active={JSON.stringify(s.value) === JSON.stringify(sort)} onClick={() => { setSort(s.value); close(); }}>{s.label}</button>)}</>}
@@ -173,6 +184,7 @@ export function Workspace(p: WorkspaceProps) {
                 {!p.baseFilter.project_id && projects.length > 0 && <Sec label="Project">{projects.map(pr => <Chk key={pr.id} on={!!filter.project_id?.includes(pr.id)} onClick={() => setFilter(f => ({ ...f, project_id: toggleIn(f.project_id, pr.id) }))}><span className="w-[8px] h-[8px] rounded-[2px]" style={{ background: pr.color }} />{pr.name}</Chk>)}</Sec>}
                 {tags.length > 0 && <Sec label="Tag">{tags.map(t => <Chk key={t.id} on={!!filter.tag_id?.includes(t.id)} onClick={() => setFilter(f => ({ ...f, tag_id: toggleIn(f.tag_id, t.id) }))}><span className="w-[8px] h-[8px] rounded-full" style={{ background: t.color }} />{t.name}</Chk>)}</Sec>}
                 {people.length > 0 && <Sec label="Person">{people.map(pe => <Chk key={pe.id} on={!!filter.person_id?.includes(pe.id)} onClick={() => setFilter(f => ({ ...f, person_id: toggleIn(f.person_id, pe.id) }))}>{pe.name}</Chk>)}</Sec>}
+                {team.length > 0 && !p.baseFilter.assignee_id && <Sec label="Assigned to">{team.map(m => <Chk key={m.id} on={!!filter.assignee_id?.includes(m.id)} onClick={() => setFilter(f => ({ ...f, assignee_id: toggleIn(f.assignee_id, m.id) }))}>{m.name}</Chk>)}</Sec>}
                 {activeFilters > 0 && <button className="menu-item text-danger mt-1" onClick={() => setFilter({})}>Clear filters</button>}
               </div>
             )}
