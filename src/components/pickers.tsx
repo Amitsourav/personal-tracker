@@ -93,11 +93,15 @@ export function PriorityPicker({ task, label, subtle }: { task: Task; label?: bo
   );
 }
 
-export function StatusPicker({ task }: { task: Task }) {
+/** compact: the one on list rows and board cards — no border; dotOnly for phone-width rows. */
+export function StatusPicker({ task, compact, dotOnly }: { task: Task; compact?: boolean; dotOnly?: boolean }) {
   const { updateTask, completeTask } = useStore();
   const colors: Record<TaskStatus, string> = { inbox: "var(--ink-3)", todo: "var(--ink-2)", in_progress: "var(--accent)", waiting: "var(--p2)", in_review: "var(--p3)", done: "var(--ok)", cancelled: "var(--ink-3)" };
   return (
-    <Popover trigger={<button className="pill border border-line bg-panel-2 text-ink-2 hover:bg-hover"><Dot color={colors[task.status]} /> {STATUS_LABEL[task.status]}</button>}>
+    <Popover trigger={
+      <button className={clsx("pill text-ink-2 hover:bg-hover", !compact && !dotOnly && "border border-line bg-panel-2")} title={dotOnly ? STATUS_LABEL[task.status] : "Change status"}>
+        <Dot color={colors[task.status]} />{!dotOnly && ` ${STATUS_LABEL[task.status]}`}
+      </button>}>
       {(close) => <>{STATUS_ORDER.map(s => <button key={s} className="menu-item" data-active={task.status === s} onClick={() => { if (s === "done") completeTask(task.id); else updateTask(task.id, { status: s, completed_at: null }); close(); }}><Dot color={colors[s]} /> {STATUS_LABEL[s]}</button>)}</>}
     </Popover>
   );

@@ -2,7 +2,7 @@
 import clsx from "clsx";
 import { useStore } from "@/lib/store";
 import type { Task } from "@/lib/types";
-import { DuePicker, PriorityPicker, ProjectPicker, PersonPicker, TagPicker } from "../pickers";
+import { DuePicker, PriorityPicker, ProjectPicker, PersonPicker, TagPicker, StatusPicker } from "../pickers";
 import { AssigneePicker } from "../TeamThread";
 import { Repeat, CornerDownRight, MessageSquareText } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
@@ -29,7 +29,6 @@ export function TaskRow({ task, showProject = true, sortable = false, depth = 0 
         {done && <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 5l2 2 4-4" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" /></svg>}
       </button>
       <span className={clsx("flex-1 min-w-0 truncate text-[13px]", done && "strike", task.status === "waiting" && "text-ink-2")}>{task.title}</span>
-      {task.status === "in_review" && <span className="pill bg-p3-soft text-p3 flex-none">in review</span>}
       {task.verification === "self" && (
         <span className="pill bg-p2-soft text-p2 flex-none" title="You marked this done — nobody has confirmed they got it">unconfirmed</span>
       )}
@@ -37,6 +36,7 @@ export function TaskRow({ task, showProject = true, sortable = false, depth = 0 
       {task.recurrence && <Repeat size={12} className="text-ink-3 flex-none" />}
       {subs.length > 0 && <span className="text-[11px] text-ink-3 tnum flex-none">{subDone}/{subs.length}</span>}
       <div className="hidden sm:flex items-center gap-1 flex-none" onClick={e => e.stopPropagation()}>
+        <StatusPicker task={task} compact />
         <AssigneePicker task={task} compact />
         <TagPicker task={task} compact />
         {task.person_id && <PersonPicker task={task} field="person_id" compact />}
@@ -46,6 +46,7 @@ export function TaskRow({ task, showProject = true, sortable = false, depth = 0 
         <PriorityPicker task={task} subtle />
       </div>
       <div className="sm:hidden flex items-center gap-1 flex-none" onClick={e => e.stopPropagation()}>
+        <StatusPicker task={task} dotOnly />
         <AssigneePicker task={task} compact />
         <DuePicker task={task} compact />
         <PriorityPicker task={task} subtle />

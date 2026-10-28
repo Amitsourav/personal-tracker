@@ -4,7 +4,7 @@ import { useState } from "react";
 import clsx from "clsx";
 import { useStore } from "@/lib/store";
 import type { Task } from "@/lib/types";
-import { DuePicker, PriorityPicker, PersonPicker } from "../pickers";
+import { DuePicker, PriorityPicker, PersonPicker, StatusPicker } from "../pickers";
 import { AssigneePicker } from "../TeamThread";
 import { PriorityFlag, Avatar } from "../ui";
 import { fmtDue } from "@/lib/dates";
@@ -61,6 +61,7 @@ function Card({ task, overlay }: { task: Task; overlay?: boolean }) {
       </div>
       <div className="flex items-center gap-1.5 flex-wrap text-[11px] text-ink-3" onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
         <PriorityFlag p={task.priority} />
+        <StatusPicker task={task} compact />
         {task.due_at && <DuePicker task={task} />}
         {p && <span className="pill text-ink-2"><span className="w-[7px] h-[7px] rounded-[2px]" style={{ background: p.color }} /> {p.name}</span>}
         <span className="ml-auto flex items-center gap-1">
