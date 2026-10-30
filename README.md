@@ -11,8 +11,9 @@ Tracker reads those messages, pulls out the things that are actually yours to
 do, and puts them in a queue for you to accept or reject. Nothing is ever added
 without you saying yes. Nothing is ever sent on your behalf.
 
-It is a single-user app by design: every account is its own walled tracker, with
-its own AI key and its own connections. You run it for yourself.
+It is a single-owner app by design: every account is its own walled tracker, with
+its own AI key and its own connections. You run it for yourself — and, if you
+like, hand work to a small team who see only what you assign them.
 
 ---
 
@@ -58,6 +59,17 @@ a morning brief, and a **planned date** that is deliberately separate from a due
 date — because "when I intend to get to this" and "when someone is waiting for
 it" are not the same thing, and treating them as one makes the overdue count
 meaningless.
+
+### Team
+
+Add the people you hand work to. They sign in with their own email and see
+**only the tasks you assign them** — never your mail, chats, sources or notes
+about other people. Assign from any list, ask for an update or a review, and
+approve or send back what they submit. Mark trusted people as **leads**: they
+can pass work on, create tasks, add people, split a task between several
+people, and review it before it reaches you. Files and links on every task, a
+team board, automatic 9 am reminders for due and overdue work, and a morning
+summary of who did what. Emails go out from your own Gmail.
 
 ### The tracker itself
 
@@ -245,7 +257,6 @@ Stated plainly, because a README that only lists wins is a sales page.
 
 - Calendar edits don't flow back — move a block in Google Calendar and Tracker keeps the old time
 - The WhatsApp bot only forwards a message if it tags you, replies to you, or starts with `Task`. A numbered list continued across messages is missed
-- Group enable/disable is SQL-only; there's no settings screen for it
 - A brand-new account lands in an empty app with no onboarding
 - Meeting prep, calendar blocking and re-plan diffs are built but lightly tested
 

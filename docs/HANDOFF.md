@@ -1,4 +1,61 @@
-# Handoff — where things stand (11 Sept 2026)
+# Handoff — where things stand (30 Oct 2026)
+
+## Since the last update (12 Sept → 30 Oct)
+Not previously recorded here: voice notes (12 Sept), WhatsApp settings screen and
+numbered-line task lists (13 Sept), the two Deepak Agrawal rows merged (13 Sept,
+migration 0015), GitHub features — where to start, already-done check, impact,
+diagnosis, estimate, draft-a-patch (14–15 Sept), Focus sessions, the MCP server,
+and Signals shown inside Review (19 Sept).
+
+**The database moved.** The app now runs on Supabase project
+`gmtjbxblrdhrdrnsbipw` (created 17 Sept), not `iljkjqlwrjkinvloqqgx`. See
+`CLAUDE.md` → IDs for how to reach it and why migrations are pasted by Amit.
+
+## Team (built 28–30 Oct 2026)
+Amit asked for Jira/Trello-style team work. All of it is live, migrations
+0024–0028 applied, edge functions `team-reminders` and `team-notify` deployed.
+
+| Piece | Where | Status |
+|---|---|---|
+| Add employees, invite by email from Amit's Gmail | `/team`, `/api/team/email`, `team_members` | ✅ confirmed working by Amit |
+| Assign from task panel and from every list row / table / board card | `AssigneePicker` in `TeamThread.tsx` | ✅ confirmed |
+| Status button on every row / card | `StatusPicker compact/dotOnly` | ✅ |
+| Conversation per task: Ask for update, Ask to review, Send back, Approve & close; new `in_review` status | `TeamThread.tsx`, `task_comments` | ✅ basic flow confirmed |
+| Employee screen — only their tasks, fixed columns, private to-dos | `MemberHome.tsx`, `member_tasks/member_act/member_comments` | ✅ |
+| Team board (status columns, person chips, group by assignee) | `/team/board` | built, not yet exercised |
+| Reminders 09:00 IST Mon–Sat: due today / tomorrow / overdue days 1,3,7,14; one email per person | `team-reminders`, cron `team-reminders-daily`, `team_reminders` | built, first real run pending |
+| Morning team summary (since last working day; quiet people) | `TeamSummary.tsx` | built |
+| Files & links on tasks (private bucket `task-files`, 25 MB, signed URLs 1h) | `Attachments.tsx`, `task_attachments` | built, not yet exercised |
+| Leads: hand on / reassign, create tasks, invite people, review chain person → lead → Amit | `lead_*` functions, `team_outbox` + `team-notify` | built, not yet exercised |
+| Split one task between several people (sub-task per person) | `SplitBetween`, `lead_split` | built, not yet exercised |
+
+Testing tip given to Amit: use `amitsourav0407+nikhil@gmail.com` style addresses
+and one browser session per person (normal Chrome / incognito / Safari).
+
+### Open, team
+- [ ] **Login email limit.** Supabase's built-in sender allows only a few
+      magic-link emails per hour; several employees signing in will hit it.
+      Fix: Supabase → Auth → SMTP using Amit's Gmail (app password).
+- [ ] Employee replies by *email* (instead of in the app) land in Amit's inbox
+      and may be read by `ingest-gmail` as new suggestions. Watch Review.
+- [ ] Not built, offered: email to Amit when someone submits/replies (today
+      in-app badge only), checklists inside a task, workload per person,
+      WhatsApp alerts via the bot, repeating tasks for employees, employees
+      raising requests to Amit.
+
+### Other open items (still true)
+- [ ] **Google app is in Testing mode** — tokens can expire after 7 days.
+      Gmail was reconnected 28 Oct (adding `gmail.send`). Publish the app
+      (privacy/terms pages exist) or expect to reconnect weekly; if it lapses,
+      capture AND team emails stop.
+- [ ] Calendar edits don't flow back to `tasks.scheduled_at` (~30 min).
+- [ ] Test data still present (Priya / Vikas / Neha, `120363TEST*` groups, probe group).
+- [ ] WhatsApp group name not sent by the bot.
+- [ ] The deferred tuning pass (prefilter, prompts, models, $10 cap).
+
+---
+
+# Earlier handoff (11 Sept 2026) — kept for the record
 
 ## TEST CHECKLIST — everything built but not yet confirmed working
 Kept at the top because it is the thing most likely to be assumed rather than
