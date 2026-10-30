@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { pokeOutbox, initials } from "@/lib/team";
 import { STATUS_LABEL, type TaskStatus } from "@/lib/types";
 import { format, formatDistanceToNow } from "date-fns";
-import { Check, ChevronDown, ChevronRight, CornerUpLeft, Eye, Forward, Kanban, List, LogOut, MessageCircleQuestion, Plus, RefreshCw, Send, UserPlus, X } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, CornerUpLeft, Eye, Forward, Kanban, List, LogOut, MessageCircleQuestion, Plus, RefreshCw, Send, UserPlus, Users, X } from "lucide-react";
 import clsx from "clsx";
 import { Attachments } from "./Attachments";
 
@@ -16,6 +16,7 @@ type MTask = {
   due_at: string | null; due_has_time: boolean; created_at: string; updated_at: string; completed_at: string | null;
   done: boolean; project_name: string | null; owner_name: string; comment_count: number;
   review_stage: "lead" | "owner" | null; lead_name: string | null; can_delegate: boolean;
+  parts_total: number; parts_done: number; parent_title: string | null;
   open_request: Req | null;
 };
 type LTask = {
@@ -188,7 +189,7 @@ function Card({ t, muted, openId, setOpenId, reload, mates, ownerFirst }: { t: M
         <div className="flex-1 min-w-0">
           <div className={clsx("text-[13.5px] font-medium leading-snug", t.done && "strike")}>{t.title}</div>
           <Meta status={t.status} due_at={t.due_at} due_has_time={t.due_has_time} overdue={!!overdue} priority={t.priority}
-            extra={[t.lead_name ? `from ${t.lead_name}` : null, t.project_name, t.comment_count > 0 ? `${t.comment_count} message${t.comment_count === 1 ? "" : "s"}` : null]} />
+            extra={[t.lead_name ? `from ${t.lead_name}` : null, t.parts_total > 0 ? `${t.parts_done}/${t.parts_total} parts done` : null, t.project_name, t.comment_count > 0 ? `${t.comment_count} message${t.comment_count === 1 ? "" : "s"}` : null]} />
           {t.open_request && !t.done && (
             <div className="mt-1.5 text-[12px] text-p1 flex items-start gap-1">
               {t.open_request.kind === "status_request" ? <MessageCircleQuestion size={12} className="mt-0.5 flex-none" /> : <Eye size={12} className="mt-0.5 flex-none" />}
@@ -211,6 +212,7 @@ function Card({ t, muted, openId, setOpenId, reload, mates, ownerFirst }: { t: M
                 <button className="btn sm primary" disabled={busy || !text.trim()} onClick={() => act("comment")}><Send size={13} /> Send</button>
                 {t.status !== "in_review" && <button className="btn sm" disabled={busy} onClick={() => act("submit")} title="Anything typed above goes with it"><Eye size={13} /> Done — send to {reviewer}</button>}
                 {t.can_delegate && <PassOn taskId={t.id} mates={mates} reload={reload} />}
+                {t.can_delegate && !t.parent_title && t.parts_total === 0 && <SplitOn taskId={t.id} mates={mates} reload={reload} />}
                 <div className="ml-auto flex gap-1">
                   {WORKING.map(s => (
                     <button key={s} className={clsx("btn sm", t.status === s && "primary")} disabled={busy || t.status === s} onClick={() => act("status", s)}>{STATUS_LABEL[s]}</button>
@@ -367,6 +369,44 @@ function PassOn({ taskId, mates, reload, current, label = "Pass on" }: { taskId:
       </div>
       <input className="field h-7" placeholder="Note for them (optional)" value={note} onChange={e => setNote(e.target.value)} />
       <button className="btn sm primary justify-self-start" disabled={busy || !to} onClick={go}><Forward size={13} /> Hand over</button>
+    </div>
+  );
+}
+
+/** Split a task into one part per person (leads only). */
+function SplitOn({ taskId, mates, reload }: { taskId: string; mates: Mate[]; reload: () => Promise<void> }) {
+  const [open, setOpen] = useState(false);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  if (mates.length < 2) return null;
+  const toggle = (id: string) => setPicked(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
+  async function go() {
+    setBusy(true);
+    const { data, error } = await createClient().rpc("lead_split", { p_task: taskId, p_members: picked, p_note: note.trim() || null });
+    setBusy(false);
+    if (error) { useStore.getState().toast(error.message); return; }
+    pokeOutbox();
+    useStore.getState().toast(`Split into ${data} parts — each person has been emailed`);
+    setOpen(false); setPicked([]); setNote("");
+    await reload();
+  }
+  if (!open) return <button className="btn sm" onClick={() => setOpen(true)} title="Give each person their own part"><Users size={13} /> Split</button>;
+  return (
+    <div className="w-full grid gap-1.5 rounded-lg border border-line p-2">
+      <div className="flex items-center text-[12px] text-ink-2">Each person gets their own part of this task, with its notes and due date.
+        <button className="btn ghost sm px-1 ml-auto" onClick={() => setOpen(false)}><X size={13} /></button></div>
+      <div className="flex flex-wrap gap-1">
+        {mates.map(m => (
+          <button key={m.id} className={clsx("pill", picked.includes(m.id) ? "bg-selected text-ink font-medium" : "text-ink-3 border border-line")} onClick={() => toggle(m.id)}>
+            {picked.includes(m.id) && <Check size={10} />}{m.me ? "Me" : m.name}
+          </button>
+        ))}
+      </div>
+      <input className="field h-7" placeholder="Note for everyone (optional)" value={note} onChange={e => setNote(e.target.value)} />
+      <button className="btn sm primary justify-self-start" disabled={busy || picked.length < 2} onClick={go}>
+        <Users size={13} /> {picked.length < 2 ? "Choose 2 or more" : `Create ${picked.length} parts`}
+      </button>
     </div>
   );
 }

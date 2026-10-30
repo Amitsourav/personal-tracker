@@ -7,7 +7,7 @@ import { teamEmail, initials } from "@/lib/team";
 import type { Task, TaskComment, TeamMember } from "@/lib/types";
 import { Popover } from "./ui";
 import { formatDistanceToNow } from "date-fns";
-import { Check, CornerUpLeft, MessageCircleQuestion, Eye, Send, UserRound, UserPlus, X } from "lucide-react";
+import { Check, CornerUpLeft, MessageCircleQuestion, Eye, Send, UserRound, UserPlus, Users, X } from "lucide-react";
 import clsx from "clsx";
 
 /**
@@ -194,5 +194,56 @@ export function TeamThread({ task }: { task: Task }) {
       )}
       {!who && <div className="text-[11.5px] text-ink-3 flex items-center gap-1"><X size={11} /> No longer assigned to anyone.</div>}
     </div>
+  );
+}
+
+/**
+ * One piece of work, several people: a part (sub-task) per person, each with
+ * the original's notes, date and priority. The original stays with Amit and
+ * shows progress; every part is assigned, emailed and reviewed on its own.
+ */
+export function SplitBetween({ task }: { task: Task }) {
+  const { team, addTask } = useStore();
+  const [picked, setPicked] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  if (!team.length || task.parent_id) return null;
+  const toggle = (id: string) => setPicked(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
+
+  async function split(close: () => void) {
+    const people = team.filter(m => picked.includes(m.id));
+    if (people.length < 2) return;
+    setBusy(true);
+    let n = 0;
+    for (const [i, m] of people.entries()) {
+      const part = await addTask({
+        title: `${task.title} — ${m.name}`, parent_id: task.id, description: task.description,
+        due_at: task.due_at, due_has_time: task.due_has_time, priority: task.priority, project_id: task.project_id,
+        status: "todo", assignee_id: m.id, sort_order: i,
+      });
+      if (part) { n++; await teamEmail("assigned", { taskId: part.id }); }
+    }
+    setBusy(false);
+    setPicked([]);
+    close();
+    useStore.getState().toast(`Split into ${n} parts — each person has been emailed`);
+  }
+
+  return (
+    <Popover trigger={<button className="pill text-ink-3 hover:bg-hover" title="Give each person their own part of this task"><Users size={11} /> Split</button>}>
+      {(close) => (
+        <div className="w-[250px] grid gap-1">
+          <div className="px-2 pt-1 text-[11.5px] text-ink-3">Each person gets their own part, with this task&apos;s notes and due date.</div>
+          {team.map(m => (
+            <button key={m.id} className="menu-item" onClick={() => toggle(m.id)}>
+              <span className={clsx("checkbox !w-[13px] !h-[13px]", picked.includes(m.id) && "done")}>{picked.includes(m.id) && <Check size={9} />}</span>
+              {m.name}
+            </button>
+          ))}
+          <button className="btn sm primary m-1" disabled={busy || picked.length < 2} onClick={() => split(close)}>
+            {busy ? "Creating…" : picked.length < 2 ? "Choose 2 or more" : `Create ${picked.length} parts`}
+          </button>
+        </div>
+      )}
+    </Popover>
   );
 }

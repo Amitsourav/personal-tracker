@@ -11,7 +11,7 @@ import { DoWithAI } from "./DoWithAI";
 import { Why } from "./Why";
 import { WhereToStart } from "./WhereToStart";
 import { StartFocus } from "./Focus";
-import { AssigneePicker, TeamThread } from "./TeamThread";
+import { AssigneePicker, TeamThread, SplitBetween } from "./TeamThread";
 import { Attachments } from "./Attachments";
 import { formatDistanceToNow, format } from "date-fns";
 import clsx from "clsx";
@@ -56,7 +56,7 @@ export function TaskDetail() {
           </div>
           <div className="grid grid-cols-[92px_1fr] gap-y-2 gap-x-2 items-center text-[12.5px]">
             <span className="text-ink-3">Status</span><div><StatusPicker task={task} /></div>
-            <span className="text-ink-3">Assigned to</span><div><AssigneePicker task={task} /></div>
+            <span className="text-ink-3">Assigned to</span><div className="flex items-center gap-1"><AssigneePicker task={task} />{subtasks.length === 0 && <SplitBetween task={task} />}</div>
             <span className="text-ink-3">Priority</span><div><PriorityPicker task={task} label /></div>
             <span className="text-ink-3">Due</span><div><DuePicker task={task} /></div>
             <span className="text-ink-3">Plan to do</span><div><PlannedPicker task={task} /></div>
@@ -122,6 +122,8 @@ function SubRow({ t }: { t: Task }) {
     <div className="flex items-center gap-2 h-7 px-1 rounded row-hover group cursor-pointer" onClick={() => select(t.id)}>
       <button className={clsx("checkbox", done && "done", `p${t.priority}`)} onClick={e => { e.stopPropagation(); completeTask(t.id, !done); }}>{done && <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 5l2 2 4-4" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" /></svg>}</button>
       <span className={clsx("flex-1 truncate text-[13px]", done && "strike")}>{t.title}</span>
+      {/* A part someone else is doing: who has it, and where it stands. */}
+      {t.assignee_id && <span onClick={e => e.stopPropagation()} className="flex items-center gap-1"><StatusPicker task={t} dotOnly /><AssigneePicker task={t} compact /></span>}
     </div>
   );
 }

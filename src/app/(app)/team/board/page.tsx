@@ -26,6 +26,7 @@ export default function TeamBoard() {
       defaultGroup="status"
       defaultsForNew={who ? { assignee_id: who } : undefined}
       allowSaveView={false}
+      includeSubtasks
       headerExtra={
         <div className="hidden sm:flex items-center gap-1 ml-2 min-w-0 overflow-x-auto">
           <Link href="/team" className="btn ghost sm text-ink-3" title="Back to Team"><ArrowLeft size={13} /></Link>

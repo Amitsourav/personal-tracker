@@ -28,6 +28,8 @@ export interface WorkspaceProps {
   showProject?: boolean;
   allowSaveView?: boolean;
   headerExtra?: React.ReactNode;
+  /** Show sub-tasks as rows of their own — the team board, where a split task's parts are the work. */
+  includeSubtasks?: boolean;
   /** Rendered above the list — used by Today for "since you last looked". */
   banner?: React.ReactNode;
 }
@@ -97,7 +99,7 @@ export function Workspace(p: WorkspaceProps) {
     () => ({ ...p.baseFilter, ...filter, search: search || undefined, include_done: showDone || p.baseFilter.include_done }),
     [baseKey, filter, search, showDone], // eslint-disable-line react-hooks/exhaustive-deps
   );
-  const visible = useMemo(() => sortTasks(applyFilter(tasks.filter(t => !t.parent_id || p.baseFilter.status?.includes("done")), taskTags, merged), sort), [tasks, taskTags, merged, sort]); // eslint-disable-line react-hooks/exhaustive-deps
+  const visible = useMemo(() => sortTasks(applyFilter(tasks.filter(t => !t.parent_id || p.includeSubtasks || p.baseFilter.status?.includes("done")), taskTags, merged), sort), [tasks, taskTags, merged, sort]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const groups: Group[] = useMemo(() => {
     if (group === "none") return [{ key: "all", label: p.title, tasks: visible }];
