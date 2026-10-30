@@ -60,7 +60,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
   // Work sent back for review, plus replies not yet opened: the two things on
   // the Team page that are waiting on Amit rather than on someone else.
   const teamUnseen = useTeamUnseen();
-  const teamCount = new Set([...open.filter(t => t.status === "in_review").map(t => t.id), ...teamUnseen.map(u => u.task_id)]).size;
+  const teamCount = new Set([...open.filter(t => t.status === "in_review" && t.review_stage !== "lead").map(t => t.id), ...teamUnseen.map(u => u.task_id)]).size;
   const projCount = (id: string) => open.filter(t => t.project_id === id).length;
 
   return (

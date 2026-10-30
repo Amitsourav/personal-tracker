@@ -21,6 +21,11 @@ export interface Task {
   waiting_on_person_id: string | null;
   /** A team member this was handed to. Null means Amit is doing it himself. */
   assignee_id: string | null;
+  /** The lead who handed it to the assignee; null when Amit assigned it directly. */
+  lead_id: string | null;
+  /** While in review: is it with the lead, or with Amit? */
+  review_stage: "lead" | "owner" | null;
+  created_by_member: string | null;
   recurrence: string | null;
   recurrence_anchor: string | null;
   custom_fields: Record<string, unknown>;
@@ -85,11 +90,12 @@ export const PRIORITY_LABEL: Record<number, string> = { 1: "Urgent", 2: "High", 
 export interface TeamMember {
   id: string; owner_id: string; member_id: string | null; name: string; email: string;
   invited_at: string; joined_at: string | null; removed_at: string | null; created_at: string;
+  is_lead: boolean; invited_by: string | null;
 }
-export type CommentKind = "comment" | "status_request" | "review_request" | "submitted" | "approved" | "returned" | "status" | "reminder" | "attachment";
+export type CommentKind = "comment" | "status_request" | "review_request" | "submitted" | "approved" | "returned" | "status" | "reminder" | "attachment" | "delegated" | "lead_approved" | "created";
 export interface TaskComment {
   id: string; task_id: string; owner_id: string; author_id: string | null; kind: CommentKind;
   body: string | null; resolved_at: string | null; seen_at: string | null; created_at: string;
 }
 /** Set when the signed-in person is someone's employee rather than an owner. */
-export interface Membership { member_id: string; owner_id: string; name: string; owner_name: string }
+export interface Membership { member_id: string; owner_id: string; name: string; owner_name: string; is_lead: boolean }

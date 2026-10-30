@@ -20,8 +20,11 @@ import clsx from "clsx";
 export function AssigneePicker({ task, compact }: { task: Task; compact?: boolean }) {
   const { team, updateTask } = useStore();
   const who = team.find(m => m.id === task.assignee_id);
+  const lead = team.find(m => m.id === task.lead_id);
+  const via = lead ? ` (via ${lead.name.split(" ")[0]})` : "";
   async function assign(m: TeamMember | null) {
-    await updateTask(task.id, { assignee_id: m?.id ?? null });
+    // Amit assigning directly takes it out of any lead's chain.
+    await updateTask(task.id, { assignee_id: m?.id ?? null, lead_id: null, review_stage: null });
     if (m) {
       useStore.getState().toast(`Assigned to ${m.name}`);
       await teamEmail("assigned", { taskId: task.id });
@@ -31,10 +34,10 @@ export function AssigneePicker({ task, compact }: { task: Task; compact?: boolea
   if (compact && !team.length && !who) return null;
   const trigger = compact
     ? who
-      ? <button className="w-5 h-5 rounded-full bg-p3-soft text-p3 grid place-items-center text-[9.5px] font-semibold flex-none hover:ring-2 hover:ring-p3/30" title={`Assigned to ${who.name} — click to change`}>{initials(who.name)}</button>
+      ? <button className="w-5 h-5 rounded-full bg-p3-soft text-p3 grid place-items-center text-[9.5px] font-semibold flex-none hover:ring-2 hover:ring-p3/30" title={`Assigned to ${who.name}${via} — click to change`}>{initials(who.name)}</button>
       : <button className="w-5 h-5 rounded-full grid place-items-center text-ink-3 opacity-50 hover:opacity-100 hover:bg-hover flex-none" title="Assign to someone"><UserPlus size={12} /></button>
     : <button className="pill text-ink-2 hover:bg-hover">
-        {who ? <><span className="w-4 h-4 rounded-full bg-p3-soft text-p3 grid place-items-center text-[8.5px] font-semibold">{initials(who.name)}</span>{who.name}</> : <><UserRound size={11} /> Me</>}
+        {who ? <><span className="w-4 h-4 rounded-full bg-p3-soft text-p3 grid place-items-center text-[8.5px] font-semibold">{initials(who.name)}</span>{who.name}{via && <span className="text-ink-3">{via}</span>}</> : <><UserRound size={11} /> Me</>}
       </button>;
   return (
     <Popover trigger={trigger}>
@@ -55,6 +58,7 @@ export function AssigneePicker({ task, compact }: { task: Task; compact?: boolea
 const LABEL: Record<TaskComment["kind"], string> = {
   comment: "", status_request: "asked for an update", review_request: "asked for a review",
   submitted: "sent this for review", approved: "approved it", returned: "sent it back", status: "moved it to", reminder: "", attachment: "attached",
+  delegated: "handed this to", lead_approved: "approved it and sent it to you", created: "created this for",
 };
 const STATUS_WORD: Record<string, string> = { todo: "To do", in_progress: "In progress", waiting: "Waiting" };
 
@@ -110,7 +114,7 @@ export function TeamThread({ task }: { task: Task }) {
     if (await post(kind, body)) {
       setText("");
       if (kind === "approved") await completeTask(task.id);
-      if (kind === "returned") await updateTask(task.id, { status: "in_progress" });
+      if (kind === "returned") await updateTask(task.id, { status: "in_progress", review_stage: null });
       if (kind === "status_request" || kind === "review_request" || kind === "returned") {
         const ok = (await teamEmail(kind, { taskId: task.id, note: body ?? undefined })).ok;
         if (ok) useStore.getState().toast(`Emailed ${who?.name ?? "them"}`);
@@ -122,6 +126,7 @@ export function TeamThread({ task }: { task: Task }) {
   const name = (c: TaskComment) => c.author_id === userId ? "You" : (who?.member_id === c.author_id ? who.name : team.find(m => m.member_id === c.author_id)?.name ?? "Team member");
   const openRequest = [...rows].reverse().find(r => (r.kind === "status_request" || r.kind === "review_request") && !r.resolved_at);
   const inReview = task.status === "in_review";
+  const taskLead = team.find(m => m.id === task.lead_id);
 
   return (
     <div className="rounded-xl border border-line p-3 grid gap-2.5">
@@ -131,7 +136,10 @@ export function TeamThread({ task }: { task: Task }) {
 
       {inReview && (
         <div className="rounded-lg bg-p3-soft text-p3 px-2.5 py-2 text-[12.5px] flex items-center gap-2">
-          <Eye size={13} className="flex-none" /> <span className="flex-1">{who?.name ?? "They"} sent this for your review.</span>
+          <Eye size={13} className="flex-none" />
+          <span className="flex-1">{task.review_stage === "lead" && taskLead
+            ? `${who?.name ?? "They"} sent this to ${taskLead.name} for review — waiting on ${taskLead.name.split(" ")[0]}. You can still decide yourself.`
+            : `${who?.name ?? "They"} sent this for your review${taskLead ? `, approved by ${taskLead.name.split(" ")[0]}` : ""}.`}</span>
         </div>
       )}
       {openRequest && !inReview && (
@@ -144,6 +152,8 @@ export function TeamThread({ task }: { task: Task }) {
             <div key={c.id} className="text-[12.5px]">
               {c.kind === "reminder" ? (
                 <div className="text-ink-3 text-[11.5px]">Automatic reminder emailed ({c.body}) · {formatDistanceToNow(new Date(c.created_at), { addSuffix: true })}</div>
+              ) : c.kind === "delegated" || c.kind === "created" ? (
+                <div className="text-ink-3 text-[11.5px]">{name(c)} {LABEL[c.kind]} {c.body} · {formatDistanceToNow(new Date(c.created_at), { addSuffix: true })}</div>
               ) : c.kind === "status" ? (
                 <div className="text-ink-3 text-[11.5px]">{name(c)} moved it to {STATUS_WORD[c.body ?? ""] ?? c.body} · {formatDistanceToNow(new Date(c.created_at), { addSuffix: true })}</div>
               ) : (

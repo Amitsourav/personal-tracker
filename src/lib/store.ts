@@ -51,6 +51,7 @@ interface State {
   deleteView: (id: string) => Promise<void>;
   addMember: (name: string, email: string) => Promise<TeamMember | null>;
   removeMember: (id: string) => Promise<void>;
+  setLead: (id: string, on: boolean) => Promise<void>;
 }
 
 let toastSeq = 1;
@@ -289,7 +290,14 @@ export const useStore = create<State>((set, get) => ({
     const theirs = get().tasks.filter(t => t.assignee_id === id && isOpen(t.status));
     set(s => ({ team: s.team.filter(m => m.id !== id) }));
     await sb().from("team_members").update({ removed_at: new Date().toISOString() }).eq("id", id);
-    for (const t of theirs) await get().updateTask(t.id, { assignee_id: null, ...(t.status === "in_review" ? { status: "todo" as const } : {}) }, { silent: true });
+    // Anything they were leading comes back too: the person doing it now reports to Amit.
+    for (const t of get().tasks.filter(t => t.lead_id === id && isOpen(t.status))) await get().updateTask(t.id, { lead_id: null, review_stage: null }, { silent: true });
+    for (const t of theirs) await get().updateTask(t.id, { assignee_id: null, lead_id: null, review_stage: null, ...(t.status === "in_review" ? { status: "todo" as const } : {}) }, { silent: true });
+  },
+  async setLead(id, on) {
+    set(s => ({ team: s.team.map(m => m.id === id ? { ...m, is_lead: on } : m) }));
+    const { error } = await sb().from("team_members").update({ is_lead: on }).eq("id", id);
+    if (error) { set(s => ({ team: s.team.map(m => m.id === id ? { ...m, is_lead: !on } : m) })); get().toast("Couldn't change: " + error.message); }
   },
   async deleteView(id) {
     set(s => ({ views: s.views.filter(v => v.id !== id) }));

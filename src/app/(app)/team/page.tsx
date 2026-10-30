@@ -47,7 +47,8 @@ export default function TeamPage() {
 
   const assigned = useMemo(() => tasks.filter(t => t.assignee_id && t.review_state === "accepted"), [tasks]);
   const unseenTasks = new Set(unseen.map(u => u.task_id));
-  const needsYou = assigned.filter(t => t.status === "in_review" || unseenTasks.has(t.id));
+  // Work still with a lead for review is not waiting on Amit yet.
+  const needsYou = assigned.filter(t => (t.status === "in_review" && t.review_stage !== "lead") || unseenTasks.has(t.id));
 
   async function add(e: React.FormEvent) {
     e.preventDefault();
@@ -111,8 +112,8 @@ export default function TeamPage() {
               <div className="flex items-center gap-2.5">
                 <span className="w-8 h-8 rounded-full bg-p3-soft text-p3 grid place-items-center text-[12px] font-semibold flex-none">{initials(m.name)}</span>
                 <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-[13.5px] truncate">{m.name}</div>
-                  <div className="text-[11.5px] text-ink-3 truncate">{m.email} · {m.joined_at ? `joined ${format(new Date(m.joined_at), "d MMM")}` : "invited, hasn't signed in yet"}</div>
+                  <div className="font-semibold text-[13.5px] truncate">{m.name}{m.is_lead && <span className="pill bg-p3-soft text-p3 ml-1.5 align-middle">Lead</span>}</div>
+                  <div className="text-[11.5px] text-ink-3 truncate">{m.email} · {m.joined_at ? `joined ${format(new Date(m.joined_at), "d MMM")}` : "invited, hasn't signed in yet"}{m.invited_by && ` · added by ${team.find(x => x.id === m.invited_by)?.name.split(" ")[0] ?? "a lead"}`}</div>
                 </div>
                 <span className="text-[12px] text-ink-3 tnum">{open.length} open</span>
                 <MemberMenu m={m} />
@@ -150,11 +151,12 @@ function Row({ t, member, unseen, onOpen }: { t: Task; member?: TeamMember; unse
 }
 
 function MemberMenu({ m }: { m: TeamMember }) {
-  const { removeMember, toast } = useStore();
+  const { removeMember, setLead, toast } = useStore();
   return (
     <Popover align="right" trigger={<button className="btn ghost sm px-1"><MoreHorizontal size={14} /></button>}>
       {(close) => <>
         <button className="menu-item" onClick={async () => { close(); const { ok } = await teamEmail("invite", { memberId: m.id }); if (ok) toast(`Invite re-sent to ${m.email}`); }}>Resend invite</button>
+        <button className="menu-item" onClick={() => { close(); setLead(m.id, !m.is_lead); toast(m.is_lead ? `${m.name} is no longer a lead` : `${m.name} is now a lead — can hand work on, create tasks and add people`); }}>{m.is_lead ? "Remove lead role" : "Make lead"}</button>
         <button className="menu-item text-danger" onClick={() => { close(); if (confirm(`Remove ${m.name}? They lose access straight away. Their open tasks come back to you.`)) removeMember(m.id); }}>Remove from team</button>
       </>}
     </Popover>

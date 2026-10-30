@@ -21,6 +21,16 @@ export async function teamEmail(kind: TeamEmailKind, ids: { taskId?: string; mem
   return { ok: !!j.ok, reconnect: !!j.reconnect };
 }
 
+/**
+ * Sends whatever a lead or team member just queued (assignments, update
+ * requests, reviews). Their session cannot reach Amit's Gmail; the
+ * team-notify function can. If this call is lost, the five-minute cron sends
+ * it anyway — hence fire and forget.
+ */
+export function pokeOutbox() {
+  createClient().functions.invoke("team-notify", { body: {} }).catch(() => {});
+}
+
 /** Whatever team members said that Amit has not opened yet. */
 export function useTeamUnseen() {
   const userId = useStore(s => s.userId);
